@@ -17,7 +17,10 @@ func (h *Handler) handleRotator(c tele.Context) error {
 func (h *Handler) handleRotatorAdd(c tele.Context) error {
 	rules := h.cfrules.GetAll()
 	if len(rules) == 0 {
-		return c.Edit("⚠️ Belum ada CF Rule.\n\nTambah CF Rule dulu di menu *⚙️ CF Redirect*.",
+		return c.Edit(
+			"⚠️ *Belum ada CF Rule terdaftar*\n\n"+
+				"Auto Rotator butuh CF Rule untuk di-rotate. Tambah dulu rule kamu di menu *⚙️ CF Redirect → ➕ Add Rule*.\n\n"+
+				"_Kalau bingung, balik ke menu utama dan ikutin urutan 1️⃣ Monitor → 2️⃣ CF Redirect → 3️⃣ Rotator._",
 			backToRotator(), tele.ModeMarkdown)
 	}
 
@@ -25,16 +28,24 @@ func (h *Handler) handleRotatorAdd(c tele.Context) error {
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
 	for _, r := range rules {
-		rows = append(rows, m.Row(m.Data("⚙️ "+r.Label, cbRotatorCFSel, r.ID)))
+		btn := "⚙️ " + r.Label
+		if r.Domain != "" {
+			btn = fmt.Sprintf("⚙️ %s (%s)", r.Label, r.Domain)
+		}
+		rows = append(rows, m.Row(m.Data(btn, cbRotatorCFSel, r.ID)))
 	}
 	rows = append(rows, m.Row(m.Data("❌ Batal", cbCancel)))
 	m.Inline(rows...)
 
-	return c.Edit("🔄 *Setup Rotator — Step 1/3*\n\nPilih CF Rule yang mau di-rotate:", m, tele.ModeMarkdown)
+	return c.Edit(
+		"🔄 *Setup Rotator — Langkah 1 dari 3*\n\n"+
+			"Pilih *CF Rule* yang mau di-rotate otomatis:\n\n"+
+			"_(Ini rule yang URL tujuannya akan otomatis diganti kalau domainnya kena nawala.)_",
+		m, tele.ModeMarkdown)
 }
 
 func (h *Handler) handleRotatorCFSelect(c tele.Context) error {
-	cfRuleID := c.Data()
+	cfRuleID := extractParam(c)
 	if cfRuleID == "" {
 		return h.handleRotatorAdd(c)
 	}
@@ -46,7 +57,10 @@ func (h *Handler) handleRotatorCFSelect(c tele.Context) error {
 
 	labels := h.domains.Labels()
 	if len(labels) == 0 {
-		return c.Edit("⚠️ Belum ada domain di Monitor.\n\nTambah domain dulu di menu *📡 Monitor*.",
+		return c.Edit(
+			"⚠️ *Belum ada domain di Monitor*\n\n"+
+				"Auto Rotator butuh *pool domain cadangan*. Tambah dulu domain di menu *📡 Monitor → ➕ Add Domain*.\n\n"+
+				"_Minimal 2 domain di label yang sama biar bot ada pilihan saat swap._",
 			backToRotator(), tele.ModeMarkdown)
 	}
 
@@ -62,14 +76,20 @@ func (h *Handler) handleRotatorCFSelect(c tele.Context) error {
 	m.Inline(rows...)
 
 	return c.Edit(
-		fmt.Sprintf("🔄 *Setup Rotator — Step 2/3*\n\nCF Rule: *%s*\n\nPilih label pool domain dari Monitor:", cfRule.Label),
+		fmt.Sprintf(
+			"🔄 *Setup Rotator — Langkah 2 dari 3*\n\n"+
+				"✅ CF Rule: *%s*\n\n"+
+				"Sekarang pilih *pool domain cadangan* (dari label di Monitor):\n\n"+
+				"_Kalau domain CF Rule kena nawala, bot bakal pilih domain lain dari pool ini sebagai pengganti._",
+			cfRule.Label),
 		m, tele.ModeMarkdown,
 	)
 }
 
 func (h *Handler) handleRotatorPoolSelect(c tele.Context) error {
-	data := c.Data()
-	parts := strings.SplitN(data, "|", 2)
+	// Param format: "cfRuleID|poolLabel"
+	param := extractParam(c)
+	parts := strings.SplitN(param, "|", 2)
 	if len(parts) != 2 {
 		return h.handleRotatorAdd(c)
 	}
@@ -84,10 +104,11 @@ func (h *Handler) handleRotatorPoolSelect(c tele.Context) error {
 
 	// Step 3: konfirmasi + input label rotator
 	prompt := fmt.Sprintf(
-		"🔄 *Setup Rotator — Step 3/3*\n\n"+
-			"CF Rule: *%s*\n"+
-			"Pool: *%s* (%d domain)\n\n"+
-			"Ketik nama/label untuk rotator ini:",
+		"🔄 *Setup Rotator — Langkah 3 dari 3 (Terakhir!)*\n\n"+
+			"✅ CF Rule: *%s*\n"+
+			"✅ Pool: *%s* (%d domain cadangan)\n\n"+
+			"📛 *Ketik nama/label untuk rotator ini* (bebas — buat kamu identifikasi nanti).\n\n"+
+			"_Contoh: `KWAI-MAIN`, `Promo-Toko`, `Backup-Iklan`._",
 		cfRule.Label, poolLabel, len(domains),
 	)
 	_ = domains
@@ -108,27 +129,25 @@ func (h *Handler) handleRotatorPoolSelect(c tele.Context) error {
 }
 
 func (h *Handler) wizardRotatorAddLabel(c tele.Context, sess *Session) error {
-	h.sessions.Delete(c.Sender().ID)
 	label := strings.TrimSpace(c.Text())
 	if label == "" {
-		h.bot.Edit(sess.PromptMsg, "❌ Label tidak boleh kosong", backToRotator(), tele.ModeMarkdown)
-		return nil
+		return c.Send("❌ Label tidak boleh kosong", backToRotator(), tele.ModeMarkdown)
 	}
+	h.sessions.Delete(c.Sender().ID)
 
 	cfRule, ok := h.cfrules.GetByID(sess.Data["cf_rule_id"])
 	if !ok {
-		h.bot.Edit(sess.PromptMsg, "❌ CF Rule tidak ditemukan", backToRotator(), tele.ModeMarkdown)
-		return nil
+		return c.Send("❌ CF Rule tidak ditemukan", backToRotator(), tele.ModeMarkdown)
 	}
 
 	rule := store.RotatorRule{
-		Label:      label,
-		CFRuleID:   sess.Data["cf_rule_id"],
-		PoolLabel:  sess.Data["pool_label"],
+		Label:     label,
+		CFRuleID:  sess.Data["cf_rule_id"],
+		PoolLabel: sess.Data["pool_label"],
 	}
 	h.rotators.Add(rule)
 
-	h.bot.Edit(sess.PromptMsg,
+	return c.Send(
 		fmt.Sprintf(
 			"✅ *Rotator aktif!*\n\n"+
 				"📛 Label: *%s*\n"+
@@ -139,7 +158,6 @@ func (h *Handler) wizardRotatorAddLabel(c tele.Context, sess *Session) error {
 		),
 		backToRotator(), tele.ModeMarkdown,
 	)
-	return nil
 }
 
 // ─── List Rotators ────────────────────────────────────────────────────────────
@@ -147,11 +165,15 @@ func (h *Handler) wizardRotatorAddLabel(c tele.Context, sess *Session) error {
 func (h *Handler) handleRotatorList(c tele.Context) error {
 	rotators := h.rotators.GetAll()
 	if len(rotators) == 0 {
-		return c.Edit("📭 Belum ada rotator.\n\nGunakan *Setup Rotator* untuk membuat.", backToRotator(), tele.ModeMarkdown)
+		return c.Edit(
+			"📭 *Belum ada Auto Rotator*\n\n"+
+				"Buat dulu lewat *➕ Setup Rotator*. Wizard 3 langkah aja, gak ribet.\n\n"+
+				"_Syaratnya: udah ada CF Rule di menu CF Redirect + minimal 2 domain di pool Monitor._",
+			backToRotator(), tele.ModeMarkdown)
 	}
 
 	var sb strings.Builder
-	sb.WriteString("📋 *Auto Rotator List*\n═══════════════\n\n")
+	sb.WriteString("📋 *Auto Rotator List*\n═══════════════════════════\n\n")
 
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
@@ -191,7 +213,7 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 // ─── Toggle Pause/Resume ──────────────────────────────────────────────────────
 
 func (h *Handler) handleRotatorToggle(c tele.Context) error {
-	rotID := c.Data()
+	rotID := extractParam(c)
 	active, found := h.rotators.Toggle(rotID)
 	if !found {
 		return c.Edit("❌ Rotator tidak ditemukan", backToRotator(), tele.ModeMarkdown)
@@ -212,7 +234,7 @@ func (h *Handler) handleRotatorToggle(c tele.Context) error {
 // ─── Delete Rotator ───────────────────────────────────────────────────────────
 
 func (h *Handler) handleRotatorDelete(c tele.Context) error {
-	rotID := c.Data()
+	rotID := extractParam(c)
 	rot, ok := h.rotators.GetByID(rotID)
 	if !ok {
 		return c.Edit("❌ Rotator tidak ditemukan", backToRotator(), tele.ModeMarkdown)
@@ -227,7 +249,7 @@ func (h *Handler) handleRotatorDelete(c tele.Context) error {
 // ─── Force Rotate ─────────────────────────────────────────────────────────────
 
 func (h *Handler) handleRotatorForce(c tele.Context) error {
-	rotID := c.Data()
+	rotID := extractParam(c)
 	rot, ok := h.rotators.GetByID(rotID)
 	if !ok {
 		return c.Edit("❌ Rotator tidak ditemukan", backToRotator(), tele.ModeMarkdown)

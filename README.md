@@ -1,30 +1,55 @@
-# BongBot
+# BongBot — Auto Domain Rotator
 
-Bot Telegram all-in-one untuk monitor nawala, kelola Cloudflare redirect, dan auto-rotate domain ketika kena blokir Kominfo.
+Bot Telegram all-in-one untuk monitor nawala (TrustPositif Kominfo), kelola Cloudflare redirect rules, dan **otomatis ganti domain** di CF ketika kena blokir.
 
-## Fitur
+## ✨ Fitur Utama
 
 | Menu | Fitur |
 |------|-------|
-| 📡 Monitor | Pantau domain nawala 24/7, cek manual, kelola list domain per kategori |
-| ⚙️ CF Redirect | Kelola Cloudflare redirect rules (v1 & v2), ganti URL redirect |
-| 🔄 Auto Rotator | Otomatis ganti domain di CF ketika kena nawala, pool domain dari Monitor |
+| 📡 **Monitor** | Pantau domain 24/7 ke TrustPositif, multi-round check (2/3 ronde), sticky cache, force-block manual, scanner reaktif paralel |
+| ⚙️ **CF Redirect** | Auto-discovery domain (V1 Page Rules + V2 Redirect Rules), register domain baru ke CF + DNS, single & bulk change URL, preserve path/query |
+| 🔄 **Auto Rotator** | Setup single & bulk (banyak CF rule → 1 pool), pause/resume/force-rotate, swap history log |
+| 🔧 **Settings** | CF email + Global API Key via bot, test connection, hot-reload |
+| 🩺 **Health Dashboard** | Status real-time semua service di reply keyboard |
+| 🔍 **Global Search** | Cari domain di Monitor / CF / Rotator / Sticky / Force sekaligus |
 
-### Cara Kerja Auto Rotator
+### 🎯 Cara Kerja Auto Swap
 ```
-Monitor deteksi domain kena nawala
+Monitor Scanner (24/7)
+        ↓ detect domain1.com BLOCKED
         ↓
-Ambil domain berikutnya dari pool (label Monitor)
-        ↓
-Update CF redirect rule otomatis
-        ↓
-Notifikasi Telegram
+🚨 Spam notif berulang sampai user hapus dari Monitor
+        +
+🔍 Cek SEMUA CF Rule → mana current URL = domain1.com?
+        ↓ match: maha66.id
+🔎 Baca Rotator config: pool = STOCK-MS
+📂 Pick first SAFE dari STOCK-MS → domain2.com
+⚡ Update CF: https://domain1.com/?ref=x → https://domain2.com/?ref=x
+              (preserve path & query)
+📜 Log ke swap_history.json
+📨 Notif: "AUTO-SWAP via MONITOR"
 ```
 
-## Instalasi
+## 🚀 Deploy ke VPS (Ubuntu 22/24)
+
+**One-shot install:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/baxiumren/auto-rot/main/deploy/install.sh | sudo bash
+```
+
+Lalu edit `.env` & start:
+```bash
+sudo nano /opt/bongbot/.env
+sudo systemctl start bongbot
+sudo journalctl -u bongbot -f
+```
+
+📖 **Panduan lengkap deploy + troubleshooting:** [`deploy/DEPLOY.md`](deploy/DEPLOY.md)
+
+## 💻 Development Lokal (Windows)
 
 ### Requirement
-- Windows 64-bit
+- Windows 64-bit / Linux / macOS
 - Go 1.21+ (cek: `go version`)
 - Bot Token dari [@BotFather](https://t.me/BotFather)
 - Cloudflare Global API Key
@@ -95,9 +120,11 @@ Kirim `/start` ke bot di grup yang sudah di-allowlist.
 - **Status Blocked** — lihat domain yang sedang terblokir
 
 ### ⚙️ CF Redirect
-- **Add Rule** — daftarkan CF redirect rule (butuh Zone ID, Ruleset ID, Rule ID)
+- **Add Rule** — daftarkan CF redirect rule. **Auto-discovery**: cukup ketik label + nama domain, bot fetch Zone ID & Rule ID otomatis dari Cloudflare API. Support 2 versi:
+  - **V2 — Redirect Rules** (Rulesets API, recommended) → endpoint `/zones/{zone}/rulesets/{ruleset}/rules/{rule}`
+  - **V1 — Page Rules** (legacy) → endpoint `/zones/{zone}/pagerules/{rule}`
 - **List Rules** — lihat semua rule yang terdaftar
-- **Ganti URL** — ubah URL tujuan redirect langsung dari bot
+- **Ganti URL** — ubah URL tujuan redirect langsung dari bot (works for both V1 & V2)
 - **Hapus Rule** — hapus rule dari daftar
 
 ### 🔄 Auto Rotator
@@ -108,18 +135,20 @@ Kirim `/start` ke bot di grup yang sudah di-allowlist.
 
 ## Cara Ambil CF IDs
 
-### Zone ID
+> ⚡ **Note:** Sejak versi terbaru bot, kamu *gak perlu ngambil IDs secara manual*. Cukup ketik nama domain di menu **➕ Add Rule** — bot auto-discover Zone ID, Ruleset ID, & Rule ID dari Cloudflare API. Section di bawah hanya buat referensi atau debugging.
+
+### Zone ID (auto-fetched)
 ```
 Cloudflare → pilih domain → Overview → scroll kanan bawah → Zone ID
 ```
 
-### Ruleset ID & Rule ID (Redirect Rules v1)
+### V2 — Redirect Rules (rekomendasi Cloudflare)
 ```
 Cloudflare → domain → Rules → Redirect Rules → klik rule → lihat URL browser
 .../rulesets/{RULESET_ID}/rules/{RULE_ID}
 ```
 
-### Page Rule ID (Page Rules v2)
+### V1 — Page Rules (legacy, masih support)
 ```
 Cloudflare → domain → Rules → Page Rules → Edit → lihat URL browser
 .../page-rules/{RULE_ID}

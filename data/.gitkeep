@@ -1,0 +1,2 @@
+# Folder ini di-commit kosong supaya bot bisa nulis ke sini saat first run.
+# File .json di dalam (cf_rules, domains, dll) di-ignore via .gitignore.

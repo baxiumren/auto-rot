@@ -149,6 +149,7 @@ func (ds *DomainStore) TotalCount() int {
 type CFRule struct {
 	ID        string `json:"id"`
 	Label     string `json:"label"`
+	Domain    string `json:"domain,omitempty"` // nama domain di CF (untuk display)
 	ZoneID    string `json:"zone_id"`
 	Type      string `json:"type"` // redirect_rules | page_rules
 	RulesetID string `json:"ruleset_id,omitempty"`
@@ -314,6 +315,170 @@ func (s *RotatorStore) Delete(id string) bool {
 		}
 	}
 	return false
+}
+
+// ─── Swap History ────────────────────────────────────────────────────────────
+
+const maxHistoryEntries = 200 // simpan max 200 swap terakhir
+
+// SwapEntry = 1 record swap (auto atau manual).
+type SwapEntry struct {
+	Timestamp  time.Time `json:"ts"`
+	Source     string    `json:"source"`           // "monitor-scan", "rotator", "manual", "bulk", "force"
+	RuleLabel  string    `json:"rule_label"`
+	RuleDomain string    `json:"rule_domain,omitempty"`
+	FromURL    string    `json:"from_url"`
+	ToURL      string    `json:"to_url"`
+	Success    bool      `json:"success"`
+	ErrorMsg   string    `json:"error,omitempty"`
+}
+
+type HistoryStore struct {
+	mu      sync.RWMutex
+	entries []SwapEntry // newest first
+}
+
+func NewHistoryStore() *HistoryStore {
+	hs := &HistoryStore{}
+	hs.load()
+	return hs
+}
+
+func (hs *HistoryStore) load() {
+	b, err := os.ReadFile(dataDir + "/swap_history.json")
+	if err != nil {
+		return
+	}
+	json.Unmarshal(b, &hs.entries)
+}
+
+func (hs *HistoryStore) save() {
+	b, _ := json.MarshalIndent(hs.entries, "", "  ")
+	os.WriteFile(dataDir+"/swap_history.json", b, 0644)
+}
+
+// LogSwap menambah entry baru ke history (di depan = newest first).
+// Otomatis trim ke maxHistoryEntries supaya gak meledak.
+func (hs *HistoryStore) LogSwap(source, ruleLabel, ruleDomain, fromURL, toURL string, success bool, errMsg string) {
+	hs.mu.Lock()
+	entry := SwapEntry{
+		Timestamp:  time.Now(),
+		Source:     source,
+		RuleLabel:  ruleLabel,
+		RuleDomain: ruleDomain,
+		FromURL:    fromURL,
+		ToURL:      toURL,
+		Success:    success,
+		ErrorMsg:   errMsg,
+	}
+	hs.entries = append([]SwapEntry{entry}, hs.entries...)
+	if len(hs.entries) > maxHistoryEntries {
+		hs.entries = hs.entries[:maxHistoryEntries]
+	}
+	hs.mu.Unlock()
+	go hs.save()
+}
+
+// GetRecent return N entry terbaru.
+func (hs *HistoryStore) GetRecent(n int) []SwapEntry {
+	hs.mu.RLock()
+	defer hs.mu.RUnlock()
+	if n > len(hs.entries) {
+		n = len(hs.entries)
+	}
+	out := make([]SwapEntry, n)
+	copy(out, hs.entries[:n])
+	return out
+}
+
+func (hs *HistoryStore) Count() int {
+	hs.mu.RLock()
+	defer hs.mu.RUnlock()
+	return len(hs.entries)
+}
+
+func (hs *HistoryStore) Clear() {
+	hs.mu.Lock()
+	hs.entries = nil
+	hs.mu.Unlock()
+	go hs.save()
+}
+
+// ─── Credentials (CF Email & API Key) ────────────────────────────────────────
+
+type Credentials struct {
+	CFEmail  string `json:"cf_email"`
+	CFAPIKey string `json:"cf_api_key"`
+}
+
+type CredentialStore struct {
+	mu   sync.RWMutex
+	data Credentials
+}
+
+func NewCredentialStore() *CredentialStore {
+	s := &CredentialStore{}
+	s.load()
+	return s
+}
+
+func (s *CredentialStore) load() {
+	b, err := os.ReadFile(dataDir + "/credentials.json")
+	if err != nil {
+		return
+	}
+	json.Unmarshal(b, &s.data)
+}
+
+func (s *CredentialStore) save() {
+	b, _ := json.MarshalIndent(s.data, "", "  ")
+	os.WriteFile(dataDir+"/credentials.json", b, 0600) // 0600: hanya owner yang bisa baca
+}
+
+func (s *CredentialStore) Get() Credentials {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.data
+}
+
+func (s *CredentialStore) SetEmail(email string) {
+	s.mu.Lock()
+	s.data.CFEmail = strings.TrimSpace(email)
+	s.mu.Unlock()
+	go s.save()
+}
+
+func (s *CredentialStore) SetAPIKey(apiKey string) {
+	s.mu.Lock()
+	s.data.CFAPIKey = strings.TrimSpace(apiKey)
+	s.mu.Unlock()
+	go s.save()
+}
+
+func (s *CredentialStore) Set(email, apiKey string) {
+	s.mu.Lock()
+	s.data.CFEmail = strings.TrimSpace(email)
+	s.data.CFAPIKey = strings.TrimSpace(apiKey)
+	s.mu.Unlock()
+	go s.save()
+}
+
+func (s *CredentialStore) Clear() {
+	s.mu.Lock()
+	s.data = Credentials{}
+	s.mu.Unlock()
+	go s.save()
+}
+
+// MaskAPIKey returns "abcd1234...wxyz" untuk display.
+func MaskAPIKey(key string) string {
+	if key == "" {
+		return "(belum di-set)"
+	}
+	if len(key) <= 12 {
+		return "****"
+	}
+	return key[:6] + "..." + key[len(key)-4:]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

@@ -1,4 +1,38 @@
+# Sensitive data — JANGAN PUSH ke GitHub
 .env
-bot.exe
-data/
+data/*.json
+data/*.bak
+data/backup_*/
+
+# Compiled binaries — build sendiri di server.
+# /bot match file 'bot' di root, lalu !/bot/ un-ignore folder bot/ source code.
+/bot
+!/bot/
+/bot.exe
+/bot.exe~
+/bot-linux
+/bot-linux-amd64
+/bot-linux-arm64
 *.exe
+*.exe~
+
+# Logs
+*.log
+bot.log
+history.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Go build cache & temp
+/tmp/
+go.work
+go.work.sum

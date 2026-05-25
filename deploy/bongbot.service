@@ -1,0 +1,37 @@
+[Unit]
+Description=BongBot — Auto Domain Rotator (Telegram + Cloudflare)
+Documentation=https://github.com/baxiumren/auto-rot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bongbot
+Group=bongbot
+WorkingDirectory=/opt/bongbot
+ExecStart=/opt/bongbot/bot-linux-amd64
+
+# Auto-restart kalau crash
+Restart=on-failure
+RestartSec=10s
+StartLimitBurst=5
+StartLimitIntervalSec=60s
+
+# Log ke journald (cek pakai: journalctl -u bongbot -f)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bongbot
+
+# Security hardening (Ubuntu 24 supported)
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/bongbot/data
+
+# Resource limits (cukup ringan, bot Go biasanya < 100 MB)
+MemoryMax=512M
+TasksMax=200
+
+[Install]
+WantedBy=multi-user.target

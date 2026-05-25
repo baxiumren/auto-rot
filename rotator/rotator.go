@@ -23,6 +23,7 @@ type Service struct {
 	cfrules  *store.CFRuleStore
 	rotators *store.RotatorStore
 	notify   Notifier
+	history  *store.HistoryStore
 
 	mu       sync.RWMutex
 	interval time.Duration
@@ -36,6 +37,7 @@ func New(
 	rotators *store.RotatorStore,
 	notify Notifier,
 	interval time.Duration,
+	history *store.HistoryStore,
 ) *Service {
 	return &Service{
 		cf:       cf,
@@ -43,6 +45,7 @@ func New(
 		cfrules:  cfrules,
 		rotators: rotators,
 		notify:   notify,
+		history:  history,
 		interval: interval,
 		blocked:  make(map[string]time.Time),
 	}
@@ -159,14 +162,21 @@ func (s *Service) checkAndRotate(rot store.RotatorRule) {
 			continue
 		}
 
-		nextURL := "https://" + nextDomain
+		// Preserve path & query dari URL lama, cuma host yang diganti
+		nextURL := buildSwapURL(currentURL, nextDomain)
 		if err := s.cf.UpdateURL(cfRule, nextURL); err != nil {
 			log.Printf("[ROTATOR] Gagal update CF rule %s: %v", rot.Label, err)
+			if s.history != nil {
+				s.history.LogSwap("rotator", cfRule.Label, cfRule.Domain, currentURL, nextURL, false, err.Error())
+			}
 			s.notify.Notify(fmt.Sprintf(
 				"❌ *AUTO ROTATE GAGAL*\n📛 Rotator: `%s`\n⚠️ Error: %v",
 				rot.Label, err,
 			))
 			return
+		}
+		if s.history != nil {
+			s.history.LogSwap("rotator", cfRule.Label, cfRule.Domain, currentURL, nextURL, true, "")
 		}
 
 		// Update blocked map
@@ -226,10 +236,16 @@ func (s *Service) ForceRotate(rot store.RotatorRule) error {
 	}
 
 	nextIdx := (currentIdx + 1) % len(pool)
-	nextURL := "https://" + pool[nextIdx]
+	nextURL := buildSwapURL(currentURL, pool[nextIdx])
 
 	if err := s.cf.UpdateURL(cfRule, nextURL); err != nil {
+		if s.history != nil {
+			s.history.LogSwap("force", cfRule.Label, cfRule.Domain, currentURL, nextURL, false, err.Error())
+		}
 		return fmt.Errorf("gagal update CF: %w", err)
+	}
+	if s.history != nil {
+		s.history.LogSwap("force", cfRule.Label, cfRule.Domain, currentURL, nextURL, true, "")
 	}
 
 	s.notify.Notify(fmt.Sprintf(
@@ -253,4 +269,51 @@ func extractHost(rawURL string) string {
 
 func normURL(u string) string {
 	return strings.ToLower(strings.TrimRight(strings.TrimSpace(u), "/"))
+}
+
+// buildSwapURL: bikin URL baru dengan host diganti newDomain, sisanya (path,
+// query, fragment, scheme) PRESERVED dari originalURL.
+//
+// Contoh:
+//   buildSwapURL("https://domain1.com/daftar?ref=mahaslot", "domain2.com")
+//   → "https://domain2.com/daftar?ref=mahaslot"
+//
+//   buildSwapURL("https://domain1.com/", "domain2.com")
+//   → "https://domain2.com/"
+//
+//   buildSwapURL("https://domain1.com", "domain2.com")
+//   → "https://domain2.com"
+func buildSwapURL(originalURL, newDomain string) string {
+	newDomain = strings.TrimSpace(newDomain)
+	// Bersihkan kalau user kasih dengan prefix
+	newDomain = strings.TrimPrefix(newDomain, "https://")
+	newDomain = strings.TrimPrefix(newDomain, "http://")
+	newDomain = strings.TrimPrefix(newDomain, "www.")
+	if idx := strings.Index(newDomain, "/"); idx != -1 {
+		newDomain = newDomain[:idx]
+	}
+
+	originalURL = strings.TrimSpace(originalURL)
+	if originalURL == "" {
+		return "https://" + newDomain
+	}
+
+	// Pastikan ada scheme biar url.Parse-nya bener
+	hasScheme := strings.Contains(originalURL, "://")
+	parseTarget := originalURL
+	if !hasScheme {
+		parseTarget = "https://" + originalURL
+	}
+
+	u, err := url.Parse(parseTarget)
+	if err != nil || u.Host == "" {
+		return "https://" + newDomain
+	}
+
+	// Replace host saja, sisanya tetap
+	u.Host = newDomain
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	return u.String()
 }
