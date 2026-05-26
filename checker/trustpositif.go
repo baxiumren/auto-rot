@@ -7,31 +7,32 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const (
-	MaxRetries   = 2
-	RoundsAuto   = 2 // ronde untuk auto-check (rotator)
-	RoundsManual = 3 // ronde untuk manual check (user)
-	StickyFile   = "data/sticky_blocked.json"
-	APITimeout   = 15 * time.Second // 15s cukup — kalau gak respon = network issue
+	StickyFile = "data/sticky_blocked.json"
+	APITimeout = 15 * time.Second
+	TotalSources = 2 // ada 2 source: API v1 + HTML scrape lama
+
+	// Source 1: Official API v1 (paling cepat & reliable)
+	// Documented: https://trust-positif.gitbook.io/docs
+	APIv1Endpoint = "https://trustpositif.id/api/v1/check"
+
+	// Source 2: Legacy HTML scrape (backup kalau API v1 down)
+	HTMLEndpoint = "https://trustpositif.komdigi.go.id/Rest_server/getrecordsname_home"
 )
 
-// Endpoint list. Setelah research dari E:\CODING\nawala\*:
-// - trustpositif.komdigi.go.id ✅ official endpoint (utama)
-// - trustpositif.app ❌ DROPPED (sekarang ada Cloudflare JS challenge, gak bisa pakai)
-// - trustpositif.kominfo.go.id ❌ DROPPED (DNS NXDOMAIN)
-var apiEndpoints = []string{
-	"https://trustpositif.komdigi.go.id/Rest_server/getrecordsname_home",
-}
-
-// ─── HTTP Client (shared, optimized for keep-alive) ──────────────────────────
+// ─── HTTP Client ──────────────────────────────────────────────────────────────
 
 var httpClient = &http.Client{
 	Timeout: APITimeout,
@@ -42,7 +43,25 @@ var httpClient = &http.Client{
 	},
 }
 
-// ─── Checker = stateful sticky+force store + API caller ──────────────────────
+// Optional API key untuk premium tier
+var (
+	apiKey   string
+	apiKeyMu sync.RWMutex
+)
+
+func SetAPIKey(key string) {
+	apiKeyMu.Lock()
+	apiKey = strings.TrimSpace(key)
+	apiKeyMu.Unlock()
+}
+
+func getAPIKey() string {
+	apiKeyMu.RLock()
+	defer apiKeyMu.RUnlock()
+	return apiKey
+}
+
+// ─── Checker = stateful sticky+force store + dual-source caller ──────────────
 
 type Checker struct {
 	stickyMu sync.RWMutex
@@ -150,7 +169,6 @@ func (c *Checker) GetStickyList() map[string]time.Time {
 	return out
 }
 
-// CleanOrphans hapus semua entry sticky+force yang gak ada di set validDomains.
 func (c *Checker) CleanOrphans(validDomains map[string]bool) (stickyCleared, forceCleared int) {
 	c.stickyMu.Lock()
 	for d := range c.sticky {
@@ -232,10 +250,82 @@ func (c *Checker) GetForceList() map[string]string {
 	return out
 }
 
-// ─── Core Check Methods ──────────────────────────────────────────────────────
+// ─── Core Check Methods (DUAL SOURCE) ────────────────────────────────────────
+//
+// Tiap check ke 2 source secara PARALEL:
+//   - Source 1: API v1 (trustpositif.id/api/v1/check) — official, cepat
+//   - Source 2: HTML scrape (trustpositif.komdigi.go.id) — legacy backup
+//
+// Logic:
+//   - ANY source say BLOCKED  → BLOCKED (fail-safe: lebih baik swap salah daripada lewat block beneran)
+//   - ALL source error        → ERROR
+//   - Otherwise (all SAFE)    → SAFE
 
-// CheckFast: untuk rotator. 2 ronde, hit sticky+force dulu.
-// Return: "BLOCKED" | "SAFE" | "ERROR"
+type sourceResult struct {
+	name    string // "API" atau "HTML"
+	status  string // "BLOCKED" | "SAFE" | "ERROR"
+	err     error
+	elapsed time.Duration
+}
+
+// checkBothSources jalanin paralel ke 2 source, return status + count.
+// Return:
+//   - status: "BLOCKED" | "SAFE" | "ERROR"
+//   - blockedSources: berapa source confirm blocked (0/1/2)
+//   - totalSources: berapa source yang sukses respon (gak ERROR)
+func (c *Checker) checkBothSources(domain string) (status string, blockedSources, totalSources int) {
+	var wg sync.WaitGroup
+	results := make([]sourceResult, 2)
+
+	wg.Add(2)
+
+	// Source 1: API v1
+	go func() {
+		defer wg.Done()
+		start := time.Now()
+		results[0] = sourceResult{name: "API", elapsed: 0}
+		s, err := checkViaAPIv1(domain)
+		results[0].status = s
+		results[0].err = err
+		results[0].elapsed = time.Since(start)
+	}()
+
+	// Source 2: HTML scrape
+	go func() {
+		defer wg.Done()
+		start := time.Now()
+		results[1] = sourceResult{name: "HTML", elapsed: 0}
+		s, err := checkViaHTMLScrape(domain)
+		results[1].status = s
+		results[1].err = err
+		results[1].elapsed = time.Since(start)
+	}()
+
+	wg.Wait()
+
+	for _, r := range results {
+		if r.err != nil {
+			log.Printf("[NAWALA] %s %s → ERROR in %v: %v", r.name, domain, r.elapsed, r.err)
+			continue
+		}
+		log.Printf("[NAWALA] %s %s → %s in %v", r.name, domain, r.status, r.elapsed)
+		totalSources++
+		if r.status == "BLOCKED" {
+			blockedSources++
+		}
+	}
+
+	if blockedSources > 0 {
+		return "BLOCKED", blockedSources, totalSources
+	}
+	if totalSources == 0 {
+		return "ERROR", 0, 0
+	}
+	return "SAFE", 0, totalSources
+}
+
+// CheckFast: untuk rotator (auto-check). 1 round ke 2 source paralel.
+// Cepat (~1.5s), efisien, redundan.
 func (c *Checker) CheckFast(domain string) string {
 	domain = Clean(domain)
 	if c.IsForceBlocked(domain) {
@@ -245,217 +335,194 @@ func (c *Checker) CheckFast(domain string) string {
 		return "BLOCKED"
 	}
 
-	gotSafe := false
-	for round := 1; round <= RoundsAuto; round++ {
-		result := c.doAPICheck(domain, round)
-		if result == "BLOCKED" {
-			c.AddSticky(domain)
-			return "BLOCKED"
-		}
-		if result == "SAFE" {
-			gotSafe = true
-			if round < RoundsAuto {
-				time.Sleep(100 * time.Millisecond)
-			}
-		}
+	status, _, _ := c.checkBothSources(domain)
+	if status == "BLOCKED" {
+		c.AddSticky(domain)
 	}
-	if !gotSafe {
-		log.Printf("[NAWALA] %s: SEMUA ronde gagal → return ERROR", domain)
-		return "ERROR"
-	}
-	return "SAFE"
+	return status
 }
 
-// CheckManual: untuk user manual cek. 3 ronde, return status + count BLOCKED/total.
+// CheckManual: untuk user manual cek. Return status + count "X/2 sources confirm blocked".
+//   - X = blockedSources (berapa source confirm blocked)
+//   - total = TotalSources (2)
 func (c *Checker) CheckManual(domain string) (status string, blockedCount, totalRounds int) {
 	domain = Clean(domain)
 	if c.IsForceBlocked(domain) {
-		return "BLOCKED", RoundsManual, RoundsManual
+		return "BLOCKED", TotalSources, TotalSources
 	}
 	if blocked, _ := c.IsSticky(domain); blocked {
-		return "BLOCKED", RoundsManual, RoundsManual
+		return "BLOCKED", TotalSources, TotalSources
 	}
 
-	gotSafe := false
-	errorCount := 0
-	for round := 1; round <= RoundsManual; round++ {
-		result := c.doAPICheck(domain, round)
-		switch result {
-		case "BLOCKED":
-			blockedCount++
-		case "SAFE":
-			gotSafe = true
-		case "ERROR":
-			errorCount++
-		}
-		if round < RoundsManual {
-			time.Sleep(200 * time.Millisecond)
-		}
-	}
-
-	if blockedCount > 0 {
+	status, blocked, _ := c.checkBothSources(domain)
+	if status == "BLOCKED" {
 		c.AddSticky(domain)
-		return "BLOCKED", blockedCount, RoundsManual
 	}
-	if !gotSafe {
-		log.Printf("[NAWALA] %s: %d/%d ronde error → return ERROR", domain, errorCount, RoundsManual)
-		return "ERROR", 0, RoundsManual
-	}
-	return "SAFE", 0, RoundsManual
+	return status, blocked, TotalSources
 }
 
-// doAPICheck — coba SEMUA endpoint, kembalikan hasil pertama yang sukses.
-func (c *Checker) doAPICheck(domain string, round int) string {
-	var lastErr error
-	for _, endpoint := range apiEndpoints {
-		for attempt := 1; attempt <= MaxRetries; attempt++ {
-			status, err := checkSingleEndpoint(domain, endpoint)
-			if err != nil {
-				lastErr = err
-				log.Printf("[NAWALA] round=%d attempt=%d endpoint=%s %s → %v",
-					round, attempt, shortEndpoint(endpoint), domain, err)
-				if attempt < MaxRetries {
-					time.Sleep(300 * time.Millisecond)
-					continue
-				}
-				break // pindah ke endpoint berikutnya
-			}
-			log.Printf("[NAWALA] round=%d endpoint=%s %s → %s",
-				round, shortEndpoint(endpoint), domain, status)
-			return status
-		}
-	}
-	log.Printf("[NAWALA] round=%d %s: SEMUA endpoint gagal, last err: %v", round, domain, lastErr)
-	return "ERROR"
+// ─── SOURCE 1: API v1 (trustpositif.id) ──────────────────────────────────────
+
+type apiV1Result struct {
+	Domain  string `json:"Domain"`
+	Blocked bool   `json:"Blocked"`
 }
 
-// shortEndpoint helper buat log lebih ringkas.
-func shortEndpoint(url string) string {
-	url = strings.TrimPrefix(url, "https://")
-	if i := strings.Index(url, "/"); i > 0 {
-		return url[:i]
-	}
-	return url
+type apiV1Response struct {
+	Success bool          `json:"success"`
+	Results []apiV1Result `json:"results"`
+	Count   int           `json:"count"`
+	Message string        `json:"message,omitempty"`
 }
 
-// ─── HTTP-Level API Call (POST + JSON parse) ─────────────────────────────────
-
-// checkSingleEndpoint POST ke endpoint dengan body "name=domain" dan parse JSON.
-//
-// CRITICAL: User-Agent HARUS "curl/8.5.0", BUKAN Mozilla/Chrome!
-// TrustPositif/Cloudflare WAF blokir browser-like UA dengan HTTP 403,
-// tapi loloskan curl UA. Discovery dari nawala-checker-bot project.
-func checkSingleEndpoint(domain, endpoint string) (string, error) {
-	body := bytes.NewBufferString("name=" + domain)
-
-	req, err := http.NewRequest("POST", endpoint, body)
+func checkViaAPIv1(domain string) (string, error) {
+	payload, _ := json.Marshal(map[string]string{"domains": domain})
+	req, err := http.NewRequest("POST", APIv1Endpoint, bytes.NewReader(payload))
 	if err != nil {
-		return "", fmt.Errorf("req create: %w", err)
+		return "", fmt.Errorf("req: %w", err)
 	}
-
-	// CRITICAL headers — sama persis dengan curl yang berhasil
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", "curl/8.5.0") // ⚠️ JANGAN diganti jadi Mozilla — bakal kena 403!
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Origin", "https://trustpositif.komdigi.go.id")
-	req.Header.Set("Referer", "https://trustpositif.komdigi.go.id/")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "BongBot/1.0")
+	req.Header.Set("Accept", "application/json")
+	if key := getAPIKey(); key != "" {
+		req.Header.Set("X-API-Key", key)
+	}
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("request: %w", err)
+		return "", fmt.Errorf("http: %w", err)
 	}
 	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read: %w", err)
+	}
 
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read body: %w", err)
+	var parsed apiV1Response
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "", fmt.Errorf("parse: %w", err)
+	}
+	if !parsed.Success {
+		return "", fmt.Errorf("API success=false: %s", parsed.Message)
 	}
 
-	return parseResponse(domain, respBody)
+	for _, r := range parsed.Results {
+		if strings.EqualFold(Clean(r.Domain), domain) {
+			if r.Blocked {
+				return "BLOCKED", nil
+			}
+			return "SAFE", nil
+		}
+	}
+	// Domain gak ada di response = gak terdaftar = SAFE
+	return "SAFE", nil
 }
 
-// parseResponse parse multi-format JSON response dari TrustPositif.
-// Format paling umum: {"values":[{"Domain":"...","Status":"Ada"}],"response":1}
-// "Ada" = BLOCKED, "Tidak Ada" / anything else = SAFE
-func parseResponse(domain string, body []byte) (string, error) {
-	// Format 1 (paling umum): {"values":[{"Domain":"...","Status":"Ada"}]}
-	var format1 struct {
-		Values []struct {
-			Domain string `json:"Domain"`
-			Status string `json:"Status"`
-		} `json:"values"`
-		Response int `json:"response"`
+// ─── SOURCE 2: HTML Scrape Legacy (trustpositif.komdigi.go.id) ───────────────
+
+func checkViaHTMLScrape(domain string) (string, error) {
+	const baseURL = "https://trustpositif.komdigi.go.id/"
+
+	// Step 1: GET halaman home untuk dapat CSRF token
+	req, err := http.NewRequest("GET", baseURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("req1: %w", err)
 	}
-	if err := json.Unmarshal(body, &format1); err == nil && len(format1.Values) > 0 {
-		for _, item := range format1.Values {
-			if strings.EqualFold(item.Domain, domain) {
-				if strings.EqualFold(strings.TrimSpace(item.Status), "Ada") {
-					return "BLOCKED", nil
-				}
-				return "SAFE", nil
+	setHTMLHeaders(req)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("http1: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+
+	csrf := extractCSRFToken(string(bodyBytes))
+	if csrf == "" {
+		return "", fmt.Errorf("csrf token gak ketemu")
+	}
+
+	// Step 2: GET halaman result dengan CSRF
+	checkURL := fmt.Sprintf(
+		"https://trustpositif.komdigi.go.id/welcome?csrf_token=%s&recaptcha_token=&domains=%s",
+		url.QueryEscape(csrf), url.QueryEscape(domain),
+	)
+	req2, _ := http.NewRequest("GET", checkURL, nil)
+	setHTMLHeaders(req2)
+	req2.Header.Set("Referer", baseURL)
+
+	resp2, err := httpClient.Do(req2)
+	if err != nil {
+		return "", fmt.Errorf("http2: %w", err)
+	}
+	defer resp2.Body.Close()
+	resultBody, _ := io.ReadAll(resp2.Body)
+
+	return parseHTMLResult(string(resultBody), domain)
+}
+
+func setHTMLHeaders(req *http.Request) {
+	req.Header.Set("User-Agent", "curl/8.5.0") // CRITICAL — Mozilla bakal kena 403
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7")
+}
+
+func extractCSRFToken(html string) string {
+	if m := regexp.MustCompile(`csrf_token=([a-fA-F0-9]+)`).FindStringSubmatch(html); len(m) > 1 {
+		return m[1]
+	}
+	if m := regexp.MustCompile(`csrf_token["'\s:=]+([a-fA-F0-9]+)`).FindStringSubmatch(html); len(m) > 1 {
+		return m[1]
+	}
+	return ""
+}
+
+func parseHTMLResult(html, domain string) (string, error) {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+	if err != nil {
+		return "", fmt.Errorf("parse html: %w", err)
+	}
+	var found string
+	doc.Find("table tr").Each(func(_ int, s *goquery.Selection) {
+		tds := s.Find("td")
+		if tds.Length() >= 2 {
+			col1 := strings.TrimSpace(tds.Eq(0).Text())
+			col2 := strings.TrimSpace(tds.Eq(1).Text())
+			if normalizeHTML(col1) == normalizeHTML(domain) {
+				found = col2
 			}
 		}
-		// values ada tapi domain gak ke-match → asumsikan SAFE (gak terdaftar di blocklist)
-		return "SAFE", nil
-	}
-
-	// Format 2: {"data":[{"domain":"...","status":"diblokir"}]}
-	var format2 struct {
-		Data []struct {
-			Domain string `json:"domain"`
-			Status string `json:"status"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &format2); err == nil && len(format2.Data) > 0 {
-		for _, item := range format2.Data {
-			if strings.EqualFold(item.Domain, domain) {
-				s := strings.ToLower(item.Status)
-				if strings.Contains(s, "diblokir") || strings.Contains(s, "blocked") || strings.Contains(s, "ada") {
-					return "BLOCKED", nil
-				}
-				return "SAFE", nil
-			}
+	})
+	if found == "" {
+		text := strings.ToLower(doc.Text())
+		if strings.Contains(text, "tidak ada") {
+			return "SAFE", nil
 		}
-		return "SAFE", nil
-	}
-
-	// Format 3: empty values = SAFE (gak ada di blocklist)
-	if strings.Contains(string(body), `"values":[]`) || strings.Contains(string(body), `"values": []`) {
-		return "SAFE", nil
-	}
-
-	// Format 4: {"blocked":true/false}
-	var format4 struct {
-		Blocked bool `json:"blocked"`
-	}
-	if err := json.Unmarshal(body, &format4); err == nil {
-		if format4.Blocked {
+		if strings.Contains(text, "ada") {
 			return "BLOCKED", nil
 		}
+		return "", fmt.Errorf("status gak ketemu di HTML")
+	}
+	s := strings.ToLower(strings.TrimSpace(found))
+	if strings.Contains(s, "tidak ada") {
 		return "SAFE", nil
 	}
-
-	// Last resort: fallback keyword scan
-	lower := strings.ToLower(string(body))
-	if strings.Contains(lower, `"status":"ada"`) || strings.Contains(lower, `"status": "ada"`) {
+	if strings.Contains(s, "ada") {
 		return "BLOCKED", nil
 	}
-	if strings.Contains(lower, `"status":"tidak ada"`) {
-		return "SAFE", nil
-	}
-
-	return "", fmt.Errorf("unknown response format: %s", truncateForLog(string(body), 200))
+	return "", fmt.Errorf("status unknown: %s", found)
 }
 
-func truncateForLog(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max] + "..."
+func normalizeHTML(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.TrimPrefix(s, "http://")
+	s = strings.TrimPrefix(s, "https://")
+	s = strings.TrimPrefix(s, "www.")
+	return strings.TrimSuffix(s, "/")
 }
 
 // ─── Backward-compat package functions ───────────────────────────────────────

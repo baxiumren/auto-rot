@@ -303,7 +303,7 @@ func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
 		var msg string
 		switch status {
 		case "BLOCKED":
-			// Sumber status: force-block / sticky / fresh API check
+			// Sumber status: force-block / sticky / fresh check
 			extraInfo := ""
 			if checker.Default().IsForceBlocked(domain) {
 				extraInfo = "\n🔨 *Source:* Force Block (manual override)"
@@ -318,16 +318,24 @@ func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
 			// Saran kontekstual
 			saran := "Gunakan domain baru"
 			if blockedCount < total {
-				saran = "Sebagian ronde blocked — recheck dulu sebelum ganti"
+				saran = "Sebagian source confirm — recheck dulu sebelum ganti"
+			}
+
+			confidenceLine := ""
+			switch blockedCount {
+			case 2:
+				confidenceLine = " ✅ *(2/2 sources confirm)*"
+			case 1:
+				confidenceLine = " ⚠️ *(cuma 1/2 source confirm)*"
 			}
 
 			msg = fmt.Sprintf(
 				"🛑 *DIBLOKIR KOMINFO*\n"+
 					"🌐 Domain: `%s`\n\n"+
 					"⚠️ *Status:* TERBLOKIR\n"+
-					"🔍 *API Check:* %d/%d blocked%s%s\n"+
+					"🔍 *Source Check:* %d/%d blocked%s%s%s\n"+
 					"💡 *Saran:* %s",
-				domain, blockedCount, total, extraInfo, kategoriInfo, saran)
+				domain, blockedCount, total, confidenceLine, extraInfo, kategoriInfo, saran)
 
 		case "SAFE":
 			kategoriInfo := ""
@@ -338,7 +346,7 @@ func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
 				"🟢 *AMAN*\n"+
 					"🌐 Domain: `%s`\n\n"+
 					"✅ Tidak terdaftar dalam Daftar Blokir KOMINFO\n"+
-					"🔍 *API Check:* 0/%d blocked%s",
+					"🔍 *Source Check:* 0/%d blocked _(dual-source)_%s",
 				domain, total, kategoriInfo)
 
 		default:
@@ -346,7 +354,8 @@ func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
 				"⚠️ *Gagal Cek Domain*\n"+
 					"🌐 `%s`\n\n"+
 					"❌ *Status:* ERROR\n"+
-					"💡 *Saran:* TrustPositif gak respon. Coba lagi 1-2 menit lagi.",
+					"🔍 *Source Check:* 0/2 responded\n"+
+					"💡 *Saran:* TrustPositif gak respon dari kedua source. Coba lagi 1-2 menit lagi.",
 				domain)
 		}
 		if loadingMsg != nil {
