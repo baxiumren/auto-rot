@@ -59,7 +59,15 @@ func (h *Handler) reply(c tele.Context, text string, opts ...interface{}) error 
 		}
 	}
 
-	return c.Send(final, sendOpts)
+	err := c.Send(final, sendOpts)
+	// Kalau pesan original udah ke-delete (misal: di security wizard kayak
+	// settings API key), Telegram return 400 "message to be replied not found".
+	// Retry tanpa ReplyTo — kirim message tetap nyampe walau gak attach reply.
+	if err != nil && strings.Contains(err.Error(), "message to be replied not found") {
+		sendOpts.ReplyTo = nil
+		return c.Send(final, sendOpts)
+	}
+	return err
 }
 
 // cancelPriorPrompt — kalau user punya session aktif yang beda dari step baru,
