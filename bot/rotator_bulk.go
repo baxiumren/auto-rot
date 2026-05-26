@@ -22,10 +22,32 @@ import (
 const rotatorBulkSelKey = "selected" // session.Data key, value = "ruleID1,ruleID2,..."
 
 func (h *Handler) handleRotatorBulk(c tele.Context) error {
-	rules := h.cfrules.GetAll()
-	if len(rules) == 0 {
+	allRules := h.cfrules.GetAll()
+	if len(allRules) == 0 {
 		return c.Edit(
 			"📭 *Belum ada CF Rule*\n\nTambah CF Rule dulu via *⚙️ CF Redirect → ➕ Add Rule*.",
+			backToRotator(), tele.ModeMarkdown)
+	}
+
+	// Filter: skip rule yang udah punya rotator config
+	hasRotator := make(map[string]bool)
+	for _, rot := range h.rotators.GetAll() {
+		hasRotator[rot.CFRuleID] = true
+	}
+	var rules []store.CFRule
+	for _, r := range allRules {
+		if !hasRotator[r.ID] {
+			rules = append(rules, r)
+		}
+	}
+
+	if len(rules) == 0 {
+		return c.Edit(
+			fmt.Sprintf(
+				"✅ *Semua CF Rule udah punya Rotator*\n\n"+
+					"Total %d CF Rule, semuanya udah di-setup auto-rotate.\n\n"+
+					"_Mau ganti pool? Hapus rotator lama dulu via *📋 List Rotator*._",
+				len(allRules)),
 			backToRotator(), tele.ModeMarkdown)
 	}
 
@@ -36,8 +58,8 @@ func (h *Handler) handleRotatorBulk(c tele.Context) error {
 	})
 
 	return c.Edit(
-		buildRotatorBulkPickerText(rules, map[string]bool{}, h.rotators.GetAll()),
-		buildRotatorBulkPickerMarkup(rules, map[string]bool{}, h.rotators.GetAll()),
+		buildRotatorBulkPickerText(rules, map[string]bool{}, len(allRules)),
+		buildRotatorBulkPickerMarkup(rules, map[string]bool{}),
 		tele.ModeMarkdown)
 }
 
@@ -60,10 +82,10 @@ func (h *Handler) handleRotatorBulkToggle(c tele.Context) error {
 	sess.Data[rotatorBulkSelKey] = serializeSelected(selected)
 	h.sessions.Set(c.Sender().ID, sess)
 
-	rules := h.cfrules.GetAll()
+	rules, totalAll := h.filteredCFRules()
 	return c.Edit(
-		buildRotatorBulkPickerText(rules, selected, h.rotators.GetAll()),
-		buildRotatorBulkPickerMarkup(rules, selected, h.rotators.GetAll()),
+		buildRotatorBulkPickerText(rules, selected, totalAll),
+		buildRotatorBulkPickerMarkup(rules, selected),
 		tele.ModeMarkdown)
 }
 
@@ -72,7 +94,7 @@ func (h *Handler) handleRotatorBulkSelectAll(c tele.Context, selectAll bool) err
 	if !ok || sess.Step != StepRotatorBulkPick {
 		return h.handleRotatorBulk(c)
 	}
-	rules := h.cfrules.GetAll()
+	rules, totalAll := h.filteredCFRules()
 	selected := map[string]bool{}
 	if selectAll {
 		for _, r := range rules {
@@ -83,9 +105,26 @@ func (h *Handler) handleRotatorBulkSelectAll(c tele.Context, selectAll bool) err
 	h.sessions.Set(c.Sender().ID, sess)
 
 	return c.Edit(
-		buildRotatorBulkPickerText(rules, selected, h.rotators.GetAll()),
-		buildRotatorBulkPickerMarkup(rules, selected, h.rotators.GetAll()),
+		buildRotatorBulkPickerText(rules, selected, totalAll),
+		buildRotatorBulkPickerMarkup(rules, selected),
 		tele.ModeMarkdown)
+}
+
+// filteredCFRules return CF Rules yang BELUM punya rotator config + total all rules.
+// Helper buat bulk picker — biar gak repeat filter logic.
+func (h *Handler) filteredCFRules() (filtered []store.CFRule, totalAll int) {
+	all := h.cfrules.GetAll()
+	totalAll = len(all)
+	hasRotator := make(map[string]bool)
+	for _, rot := range h.rotators.GetAll() {
+		hasRotator[rot.CFRuleID] = true
+	}
+	for _, r := range all {
+		if !hasRotator[r.ID] {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered, totalAll
 }
 
 func (h *Handler) handleRotatorBulkProceed(c tele.Context) error {
@@ -220,18 +259,17 @@ func (h *Handler) handleRotatorBulkPickPool(c tele.Context) error {
 
 // ─── UI Helpers ──────────────────────────────────────────────────────────────
 
-func buildRotatorBulkPickerText(rules []store.CFRule, selected map[string]bool, allRotators []store.RotatorRule) string {
-	hasRotator := make(map[string]string, len(allRotators))
-	for _, rot := range allRotators {
-		hasRotator[rot.CFRuleID] = rot.PoolLabel
-	}
-
+func buildRotatorBulkPickerText(rules []store.CFRule, selected map[string]bool, totalAll int) string {
 	var sb strings.Builder
 	sb.WriteString("📦 *Bulk Setup Rotator — Pilih CF Rules*\n")
 	sb.WriteString("═══════════════════════════\n\n")
 	sb.WriteString("Pilih *banyak CF Rule sekaligus*, nanti assign ke 1 pool yang sama.\n")
 	sb.WriteString("_Cocok kalau banyak rule pakai pool yg sama._\n\n")
-	sb.WriteString(fmt.Sprintf("📊 *Dipilih:* %d / %d rule\n\n", len(selected), len(rules)))
+	sb.WriteString(fmt.Sprintf("📊 *Dipilih:* %d / %d rule (belum punya rotator)\n", len(selected), len(rules)))
+	if hidden := totalAll - len(rules); hidden > 0 {
+		sb.WriteString(fmt.Sprintf("_(%d rule udah punya rotator — disembunyikan.)_\n", hidden))
+	}
+	sb.WriteString("\n")
 
 	if len(selected) > 0 {
 		sb.WriteString("━━━━━━━━━━━━━━━━━━\n*Rule yang dipilih:*\n")
@@ -241,11 +279,7 @@ func buildRotatorBulkPickerText(rules []store.CFRule, selected map[string]bool, 
 				if dom == "" {
 					dom = "(no domain)"
 				}
-				note := ""
-				if pool, exists := hasRotator[r.ID]; exists {
-					note = fmt.Sprintf(" _⚠️ udah ada rotator → pool: %s_", escapeMD(pool))
-				}
-				sb.WriteString(fmt.Sprintf("✅ *%s* — `%s`%s\n", escapeMD(r.Label), escapeMD(dom), note))
+				sb.WriteString(fmt.Sprintf("✅ *%s* — `%s`\n", escapeMD(r.Label), escapeMD(dom)))
 			}
 		}
 		sb.WriteString("\n💡 _Klik *Lanjut* untuk pilih pool._")
@@ -255,12 +289,7 @@ func buildRotatorBulkPickerText(rules []store.CFRule, selected map[string]bool, 
 	return sb.String()
 }
 
-func buildRotatorBulkPickerMarkup(rules []store.CFRule, selected map[string]bool, allRotators []store.RotatorRule) *tele.ReplyMarkup {
-	hasRotator := make(map[string]bool, len(allRotators))
-	for _, rot := range allRotators {
-		hasRotator[rot.CFRuleID] = true
-	}
-
+func buildRotatorBulkPickerMarkup(rules []store.CFRule, selected map[string]bool) *tele.ReplyMarkup {
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
 
@@ -278,11 +307,7 @@ func buildRotatorBulkPickerMarkup(rules []store.CFRule, selected map[string]bool
 		if dom == "" {
 			dom = "?"
 		}
-		marker := ""
-		if hasRotator[r.ID] {
-			marker = " ⚠️"
-		}
-		btnText := fmt.Sprintf("%s %s (%s)%s", check, r.Label, dom, marker)
+		btnText := fmt.Sprintf("%s %s (%s)", check, r.Label, dom)
 		rows = append(rows, m.Row(m.Data(truncate(btnText, 60), cbRotatorBulkToggle, r.ID)))
 	}
 

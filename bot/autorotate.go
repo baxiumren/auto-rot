@@ -15,12 +15,35 @@ func (h *Handler) handleRotator(c tele.Context) error {
 // ─── Setup Rotator ────────────────────────────────────────────────────────────
 
 func (h *Handler) handleRotatorAdd(c tele.Context) error {
-	rules := h.cfrules.GetAll()
-	if len(rules) == 0 {
+	allRules := h.cfrules.GetAll()
+	if len(allRules) == 0 {
 		return c.Edit(
 			"⚠️ *Belum ada CF Rule terdaftar*\n\n"+
 				"Auto Rotator butuh CF Rule untuk di-rotate. Tambah dulu rule kamu di menu *⚙️ CF Redirect → ➕ Add Rule*.\n\n"+
 				"_Kalau bingung, balik ke menu utama dan ikutin urutan 1️⃣ Monitor → 2️⃣ CF Redirect → 3️⃣ Rotator._",
+			backToRotator(), tele.ModeMarkdown)
+	}
+
+	// Filter: skip rule yang udah punya rotator config.
+	// User harus hapus rotator lama dulu kalau mau bikin baru untuk CF rule yang sama.
+	hasRotator := make(map[string]bool)
+	for _, rot := range h.rotators.GetAll() {
+		hasRotator[rot.CFRuleID] = true
+	}
+	var rules []store.CFRule
+	for _, r := range allRules {
+		if !hasRotator[r.ID] {
+			rules = append(rules, r)
+		}
+	}
+
+	if len(rules) == 0 {
+		return c.Edit(
+			fmt.Sprintf(
+				"✅ *Semua CF Rule udah punya Rotator*\n\n"+
+					"Total %d CF Rule, semuanya udah di-setup auto-rotate.\n\n"+
+					"_Mau ganti pool? Hapus rotator lama dulu via *📋 List Rotator*._",
+				len(allRules)),
 			backToRotator(), tele.ModeMarkdown)
 	}
 
@@ -37,10 +60,18 @@ func (h *Handler) handleRotatorAdd(c tele.Context) error {
 	rows = append(rows, m.Row(m.Data("❌ Batal", cbCancel)))
 	m.Inline(rows...)
 
+	configuredCount := len(allRules) - len(rules)
+	headerNote := ""
+	if configuredCount > 0 {
+		headerNote = fmt.Sprintf("\n_(%d rule udah punya rotator — disembunyikan dari list.)_", configuredCount)
+	}
+
 	return c.Edit(
-		"🔄 *Setup Rotator — Langkah 1 dari 3*\n\n"+
-			"Pilih *CF Rule* yang mau di-rotate otomatis:\n\n"+
-			"_(Ini rule yang URL tujuannya akan otomatis diganti kalau domainnya kena nawala.)_",
+		fmt.Sprintf(
+			"🔄 *Setup Rotator — Langkah 1 dari 3*\n\n"+
+				"Pilih *CF Rule* yang mau di-rotate otomatis:%s\n\n"+
+				"_(Ini rule yang URL tujuannya akan otomatis diganti kalau domainnya kena nawala.)_",
+			headerNote),
 		m, tele.ModeMarkdown)
 }
 
