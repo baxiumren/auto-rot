@@ -20,14 +20,15 @@ const (
 	RoundsAuto   = 2 // ronde untuk auto-check (rotator)
 	RoundsManual = 3 // ronde untuk manual check (user)
 	StickyFile   = "data/sticky_blocked.json"
-	APITimeout   = 30 * time.Second
+	APITimeout   = 15 * time.Second // 15s cukup — kalau gak respon = network issue
 )
 
-// Endpoint list — kalau satu down, coba yang lain (urut dari paling cepat)
+// Endpoint list. Setelah research dari E:\CODING\nawala\*:
+// - trustpositif.komdigi.go.id ✅ official endpoint (utama)
+// - trustpositif.app ❌ DROPPED (sekarang ada Cloudflare JS challenge, gak bisa pakai)
+// - trustpositif.kominfo.go.id ❌ DROPPED (DNS NXDOMAIN)
 var apiEndpoints = []string{
 	"https://trustpositif.komdigi.go.id/Rest_server/getrecordsname_home",
-	"https://trustpositif.app/Rest_server/getrecordsname_home",
-	"https://trustpositif.kominfo.go.id/Rest_server/getrecordsname_home",
 }
 
 // ─── HTTP Client (shared, optimized for keep-alive) ──────────────────────────
@@ -340,6 +341,10 @@ func shortEndpoint(url string) string {
 // ─── HTTP-Level API Call (POST + JSON parse) ─────────────────────────────────
 
 // checkSingleEndpoint POST ke endpoint dengan body "name=domain" dan parse JSON.
+//
+// CRITICAL: User-Agent HARUS "curl/8.5.0", BUKAN Mozilla/Chrome!
+// TrustPositif/Cloudflare WAF blokir browser-like UA dengan HTTP 403,
+// tapi loloskan curl UA. Discovery dari nawala-checker-bot project.
 func checkSingleEndpoint(domain, endpoint string) (string, error) {
 	body := bytes.NewBufferString("name=" + domain)
 
@@ -348,15 +353,12 @@ func checkSingleEndpoint(domain, endpoint string) (string, error) {
 		return "", fmt.Errorf("req create: %w", err)
 	}
 
-	// Headers PENTING — harus mimic browser Indonesia
+	// CRITICAL headers — sama persis dengan curl yang berhasil
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7")
+	req.Header.Set("User-Agent", "curl/8.5.0") // ⚠️ JANGAN diganti jadi Mozilla — bakal kena 403!
+	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Origin", "https://trustpositif.komdigi.go.id")
 	req.Header.Set("Referer", "https://trustpositif.komdigi.go.id/")
-	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("Cache-Control", "no-cache")
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
