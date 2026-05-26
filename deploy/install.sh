@@ -101,7 +101,40 @@ systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
 ok "Service '$SERVICE_NAME' enabled (auto-start saat boot)"
 
-# ─── 7. Summary ──────────────────────────────────────────────────────────────
+# ─── 7. Smart restart kalau service udah running (update flow) ───────────────
+# Deteksi: kalau service sedang aktif, ini berarti UPDATE flow (rebuild binary
+# baru). Auto-restart biar binary baru langsung jalan tanpa user harus chain
+# command manual. Cegah zombie process pakai binary lama.
+if systemctl is-active --quiet "$SERVICE_NAME"; then
+    echo ""
+    log "Service sedang RUNNING — auto-restart pakai binary baru..."
+    systemctl restart "$SERVICE_NAME"
+    sleep 3
+
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+        ok "Service restarted sukses ✓"
+        echo ""
+        echo "════════════════════════════════════════════════════════════════"
+        ok "UPDATE SELESAI — Bot sedang running dengan binary baru!"
+        echo "════════════════════════════════════════════════════════════════"
+        echo ""
+        echo "📋 Log 15 terakhir:"
+        echo "────────────────────────────────────────────────────────────────"
+        journalctl -u "$SERVICE_NAME" -n 15 --no-pager
+        echo "────────────────────────────────────────────────────────────────"
+        echo ""
+        echo "🔍 Tail real-time log:"
+        echo "   sudo journalctl -u $SERVICE_NAME -f"
+        echo ""
+        exit 0
+    else
+        warn "Service GAGAL restart — cek log:"
+        echo "   sudo journalctl -u $SERVICE_NAME -n 30 --no-pager"
+        exit 1
+    fi
+fi
+
+# ─── 8. Summary (fresh install — service belum running) ──────────────────────
 echo ""
 echo "════════════════════════════════════════════════════════════════"
 ok "INSTALLATION SELESAI!"
@@ -133,4 +166,5 @@ echo "   sudo journalctl -u $SERVICE_NAME -n 100 # 100 log terakhir"
 echo ""
 echo "🔄 Update bot ke versi terbaru (re-run script ini):"
 echo "   sudo bash $INSTALL_DIR/deploy/install.sh"
+echo "   (Auto-restart kalau service udah running)"
 echo ""

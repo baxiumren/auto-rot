@@ -115,11 +115,16 @@ Outputnya harus muncul:
 
 ## 🔄 Update Bot ke Versi Terbaru
 
-### Cara 1 — re-run install script:
+### Cara 1 — re-run install script (RECOMMENDED, auto-restart):
 ```bash
 sudo bash /opt/bongbot/deploy/install.sh
-sudo systemctl restart bongbot
 ```
+
+Install.sh otomatis:
+- git pull dari main branch
+- Rebuild binary
+- **Auto-restart service kalau sedang running** (no zombie)
+- Tail 15 log terakhir untuk verify
 
 ### Cara 2 — manual git pull + rebuild:
 ```bash
