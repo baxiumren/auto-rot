@@ -30,6 +30,12 @@ const (
 
 	// Cooldown saat API hit 429 / quota habis — skip selama ini
 	quotaResetCooldown = 1 * time.Hour
+
+	// ─── Retry config untuk anti rate-limit ─────────────────────────────
+	// Kominfo Rest_server kadang balikin 404 saat di-hit terlalu cepat
+	// (deceptive anti-spam). Retry dengan exponential backoff solve ini.
+	MaxRetryAttempts = 3                      // total attempt = 1 + 2 retry
+	RetryBaseDelay   = 800 * time.Millisecond // delay attempt-1: 800ms, attempt-2: 1600ms
 )
 
 // MaxSources return total sumber yg aktif (2 atau 3 tergantung NawalaCheck key).
@@ -88,6 +94,18 @@ func getNawalaCheckKey() string {
 	nawalaCheckKeyMu.RLock()
 	defer nawalaCheckKeyMu.RUnlock()
 	return nawalaCheckKey
+}
+
+// HasNawalaCheckKey return true kalau NawalaCheck API key udah di-set.
+// Buat bot UI: enable/disable tombol pilihan source.
+func HasNawalaCheckKey() bool {
+	return getNawalaCheckKey() != ""
+}
+
+// HasTrustPositifKey return true kalau TrustPositif API key udah di-set.
+// Buat bot UI: tampilin tombol Trust Positif ID atau enggak.
+func HasTrustPositifKey() bool {
+	return getAPIKey() != ""
 }
 
 // NawalaCheck quota cooldown (kalau 403 Limit habis)
@@ -436,7 +454,9 @@ func (c *Checker) checkBothSources(domain string) (status string, blockedSources
 	return c.checkAllSources(domain)
 }
 
-// CheckFast: untuk rotator (auto-check).
+// CheckFast: untuk AUTO-CHECK (Monitor Scanner & Rotator service).
+// CUMA pakai Kominfo Rest_server — paling reliable & update 24/7.
+// Hemat quota Source 2 (TrustPositif API v1) & gak butuh paid Source 3.
 func (c *Checker) CheckFast(domain string) string {
 	domain = Clean(domain)
 	if c.IsForceBlocked(domain) {
@@ -446,30 +466,187 @@ func (c *Checker) CheckFast(domain string) string {
 		return "BLOCKED"
 	}
 
-	status, _, _ := c.checkBothSources(domain)
+	// AUTO-CHECK = KOMINFO ONLY (single source, with retry already built-in)
+	status, err := checkViaRestServer(domain)
+	if err != nil {
+		log.Printf("[NAWALA-AUTO] Kominfo %s → ERROR: %v", domain, err)
+		return "ERROR"
+	}
 	if status == "BLOCKED" {
 		c.AddSticky(domain)
 	}
 	return status
 }
 
-// CheckManual: untuk user manual cek. Return status + "X/Y sources confirm".
-// Y = 2 atau 3 tergantung NawalaCheck key ada/enggak.
-func (c *Checker) CheckManual(domain string) (status string, blockedCount, totalRounds int) {
+// SourceMode untuk MANUAL CHECK (user pilih lewat tombol di Telegram).
+// Tiap mode = SATU source.
+type SourceMode int
+
+const (
+	// SourceKominfo: trustpositif.komdigi.go.id — official Kominfo, UNLIMITED
+	SourceKominfo SourceMode = 1
+	// SourceTrustPositif: trustpositif.id/api/v1 — third-party mirror, 100/day
+	SourceTrustPositif SourceMode = 2
+	// SourceNawalaCheck: nawalacheck.com — paid ISP-based, ~10/day di free tier
+	SourceNawalaCheck SourceMode = 3
+
+	// Backward-compat alias (deprecated, untuk gak break code lama)
+	SourceKominfoPlusTP SourceMode = 1
+)
+
+// CheckManual: untuk user manual cek. Accept SourceMode untuk milih sumber.
+// Auto-check JANGAN pakai ini — pakai CheckFast (Kominfo only) biar hemat resource.
+func (c *Checker) CheckManual(domain string, mode SourceMode) (status string, blockedCount, totalSources int) {
 	domain = Clean(domain)
-	maxSrc := MaxSources()
+
+	// Sticky/force shortcut — apapun mode-nya
 	if c.IsForceBlocked(domain) {
-		return "BLOCKED", maxSrc, maxSrc
+		return "BLOCKED", 1, 1
 	}
 	if blocked, _ := c.IsSticky(domain); blocked {
-		return "BLOCKED", maxSrc, maxSrc
+		return "BLOCKED", 1, 1
 	}
 
-	status, blocked, _ := c.checkAllSources(domain)
-	if status == "BLOCKED" {
-		c.AddSticky(domain)
+	switch mode {
+	case SourceKominfo:
+		return c.checkKominfoOnly(domain)
+	case SourceTrustPositif:
+		return c.checkTrustPositifOnly(domain)
+	case SourceNawalaCheck:
+		return c.checkNawalaCheckOnly(domain)
+	default:
+		return "ERROR", 0, 0
 	}
-	return status, blocked, maxSrc
+}
+
+// checkKominfoOnly — cek single source Kominfo (trustpositif.komdigi.go.id)
+func (c *Checker) checkKominfoOnly(domain string) (status string, blockedSources, totalSources int) {
+	start := time.Now()
+	s, err := checkViaRestServer(domain)
+	if err != nil {
+		log.Printf("[NAWALA-MANUAL] Kominfo %s → ERROR in %v: %v", domain, time.Since(start), err)
+		return "ERROR", 0, 0
+	}
+	log.Printf("[NAWALA-MANUAL] Kominfo %s → %s in %v", domain, s, time.Since(start))
+	if s == "BLOCKED" {
+		c.AddSticky(domain)
+		return "BLOCKED", 1, 1
+	}
+	return "SAFE", 0, 1
+}
+
+// checkTrustPositifOnly — cek single source TrustPositif ID (trustpositif.id/api/v1)
+func (c *Checker) checkTrustPositifOnly(domain string) (status string, blockedSources, totalSources int) {
+	if isAPIv1InCooldown() {
+		log.Printf("[NAWALA-MANUAL] TrustPositif %s → ERROR: cooldown (quota habis sebelumnya)", domain)
+		return "ERROR", 0, 0
+	}
+	start := time.Now()
+	s, err := checkViaAPIv1(domain)
+	if err != nil {
+		log.Printf("[NAWALA-MANUAL] TrustPositif %s → ERROR in %v: %v", domain, time.Since(start), err)
+		if strings.Contains(err.Error(), "429") || strings.Contains(err.Error(), "Daily limit") {
+			setAPIv1Cooldown()
+		}
+		return "ERROR", 0, 0
+	}
+	log.Printf("[NAWALA-MANUAL] TrustPositif %s → %s in %v", domain, s, time.Since(start))
+	if s == "BLOCKED" {
+		c.AddSticky(domain)
+		return "BLOCKED", 1, 1
+	}
+	return "SAFE", 0, 1
+}
+
+// checkKominfoPlusTP — cek paralel Kominfo + TrustPositif ID.
+func (c *Checker) checkKominfoPlusTP(domain string) (status string, blockedSources, totalSources int) {
+	var wg sync.WaitGroup
+	results := make([]sourceResult, 2)
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		start := time.Now()
+		results[0] = sourceResult{name: "Kominfo"}
+		s, err := checkViaRestServer(domain)
+		results[0].status = s
+		results[0].err = err
+		results[0].elapsed = time.Since(start)
+	}()
+
+	go func() {
+		defer wg.Done()
+		start := time.Now()
+		results[1] = sourceResult{name: "TrustPositif"}
+		if isAPIv1InCooldown() {
+			results[1].skipped = true
+			results[1].err = fmt.Errorf("quota cooldown")
+			return
+		}
+		s, err := checkViaAPIv1(domain)
+		results[1].status = s
+		results[1].err = err
+		results[1].elapsed = time.Since(start)
+		if err != nil && (strings.Contains(err.Error(), "429") || strings.Contains(err.Error(), "Daily limit")) {
+			setAPIv1Cooldown()
+		}
+	}()
+
+	wg.Wait()
+
+	for _, r := range results {
+		if r.skipped {
+			log.Printf("[NAWALA-MANUAL] %s %s → SKIP (cooldown)", r.name, domain)
+			continue
+		}
+		if r.err != nil {
+			log.Printf("[NAWALA-MANUAL] %s %s → ERROR in %v: %v", r.name, domain, r.elapsed, r.err)
+			continue
+		}
+		log.Printf("[NAWALA-MANUAL] %s %s → %s in %v", r.name, domain, r.status, r.elapsed)
+		totalSources++
+		if r.status == "BLOCKED" {
+			blockedSources++
+		}
+	}
+
+	if blockedSources > 0 {
+		c.AddSticky(domain)
+		return "BLOCKED", blockedSources, totalSources
+	}
+	if totalSources == 0 {
+		return "ERROR", 0, 0
+	}
+	return "SAFE", 0, totalSources
+}
+
+// checkNawalaCheckOnly — cek NawalaCheck single source (paid API).
+func (c *Checker) checkNawalaCheckOnly(domain string) (status string, blockedSources, totalSources int) {
+	if getNawalaCheckKey() == "" {
+		log.Printf("[NAWALA-MANUAL] NawalaCheck %s → ERROR: API key gak di-set", domain)
+		return "ERROR", 0, 0
+	}
+	if isNawalaCheckInCooldown() {
+		log.Printf("[NAWALA-MANUAL] NawalaCheck %s → ERROR: cooldown", domain)
+		return "ERROR", 0, 0
+	}
+
+	start := time.Now()
+	s, err := checkViaNawalaCheck(domain)
+	if err != nil {
+		log.Printf("[NAWALA-MANUAL] NawalaCheck %s → ERROR in %v: %v", domain, time.Since(start), err)
+		if strings.Contains(err.Error(), "403") {
+			setNawalaCheckCooldown()
+		}
+		return "ERROR", 0, 0
+	}
+	log.Printf("[NAWALA-MANUAL] NawalaCheck %s → %s in %v", domain, s, time.Since(start))
+
+	if s == "BLOCKED" {
+		c.AddSticky(domain)
+		return "BLOCKED", 1, 1
+	}
+	return "SAFE", 0, 1
 }
 
 // ─── SOURCE 1: Rest_server (UNLIMITED) ───────────────────────────────────────
@@ -489,7 +666,58 @@ type restServerResponse struct {
 	Response int `json:"response"`
 }
 
+// checkViaRestServer wrapper dengan retry logic.
+// Kominfo Rest_server kadang balikin 404 saat di-hit cepat (anti-spam).
+// Strategy yang udah confirmed work (tested via browser console):
+//   - Attempt 1 → kalau 404/5xx/timeout → wait 800ms
+//   - Attempt 2 → kalau gagal → wait 1600ms
+//   - Attempt 3 → final, return error kalau masih gagal
 func checkViaRestServer(domain string) (string, error) {
+	var lastErr error
+	for attempt := 1; attempt <= MaxRetryAttempts; attempt++ {
+		status, err := doRestServerCall(domain)
+		if err == nil {
+			if attempt > 1 {
+				log.Printf("[NAWALA] Rest %s → OK after %d attempts", domain, attempt)
+			}
+			return status, nil
+		}
+		lastErr = err
+
+		// Retry hanya untuk error yang RECOVERABLE (404, 5xx, timeout)
+		// 4xx lain (401, 403) atau parse error → langsung return (gak guna retry)
+		if !isRetryableError(err) {
+			return "", err
+		}
+
+		if attempt < MaxRetryAttempts {
+			delay := time.Duration(attempt) * RetryBaseDelay // 800ms, 1600ms
+			time.Sleep(delay)
+		}
+	}
+	return "", fmt.Errorf("setelah %d attempts: %w", MaxRetryAttempts, lastErr)
+}
+
+// isRetryableError: HTTP 404, 5xx, timeout, dan network error = boleh retry
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	// Sangat umum dari anti-spam Kominfo
+	if strings.Contains(msg, "HTTP 404") || strings.Contains(msg, "HTTP 5") {
+		return true
+	}
+	// Network errors
+	if strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline exceeded") ||
+		strings.Contains(msg, "connection reset") || strings.Contains(msg, "EOF") {
+		return true
+	}
+	return false
+}
+
+// doRestServerCall: actual HTTP call, single attempt.
+func doRestServerCall(domain string) (string, error) {
 	body := bytes.NewBufferString("name=" + domain)
 	req, err := http.NewRequest("POST", RestServerEndpoint, body)
 	if err != nil {
@@ -674,12 +902,15 @@ func truncateLog(s string, max int) string {
 
 // ─── Backward-compat package functions ───────────────────────────────────────
 
+// CheckDomain (package-level): legacy wrapper untuk auto-check via Kominfo only.
 func CheckDomain(domain string) string {
 	return defaultChecker.CheckFast(domain)
 }
 
+// CheckDomainManual (package-level): default ke SourceKominfo (paling reliable).
+// Untuk source lain, panggil langsung defaultChecker.CheckManual(domain, ...).
 func CheckDomainManual(domain string) (status string, blockedCount, total int) {
-	return defaultChecker.CheckManual(domain)
+	return defaultChecker.CheckManual(domain, SourceKominfo)
 }
 
 func Default() *Checker {

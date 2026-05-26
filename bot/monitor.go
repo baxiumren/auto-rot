@@ -327,19 +327,117 @@ func (h *Handler) handleMonitorCheck(c tele.Context) error {
 	return nil
 }
 
+// wizardMonitorCheck: user ketik domain → bot tampilin source picker (BUKAN langsung cek)
 func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
-	h.sessions.Delete(c.Sender().ID)
 	domain := store.CleanDomain(c.Text())
 	if domain == "" {
 		return h.reply(c, "❌ Domain tidak valid", backToMonitor(), tele.ModeMarkdown)
 	}
-	loadingMsg, _ := h.bot.Send(c.Chat(),
-		fmt.Sprintf("⏳ *Cek domain `%s`...*\n\n_Bot lagi cek 3 ronde ke TrustPositif untuk akurasi maksimal._", domain),
+
+	// Simpan domain ke session, pindah ke step pilih source
+	sess.Data["check_domain"] = domain
+	sess.Step = StepMonitorCheckSrc
+	h.sessions.Set(c.Sender().ID, sess)
+
+	// Build picker buttons — conditional render berdasarkan API key
+	hasTP := checker.HasTrustPositifKey()
+	hasNW := checker.HasNawalaCheckKey()
+
+	m := &tele.ReplyMarkup{}
+	rows := []tele.Row{
+		// KOMINFO selalu muncul (gak butuh API key)
+		m.Row(m.Data("🏛️ KOMINFO", cbMonitorCheckKominfo)),
+	}
+	if hasTP {
+		rows = append(rows, m.Row(m.Data("📋 TRUST POSITIF ID", cbMonitorCheckTP)))
+	}
+	if hasNW {
+		rows = append(rows, m.Row(m.Data("🌐 NAWALA CHECKER", cbMonitorCheckNawala)))
+	}
+	rows = append(rows, m.Row(m.Data("❌ Cancel", cbCancel)))
+	m.Inline(rows...)
+
+	// Build info text — cuma tampilin source yg aktif
+	var infoBuilder strings.Builder
+	infoBuilder.WriteString(fmt.Sprintf(
+		"🔍 *Pilih Sumber Pengecekan*\n\n"+
+			"🌐 Domain: `%s`\n\n"+
+			"━━━━━━━━━━━━━━━━━━\n"+
+			"*🏛️ KOMINFO*\n"+
+			"📍 Source: `trustpositif.komdigi.go.id`\n"+
+			"📊 Limit: *Unlimited* per hari\n"+
+			"💡 Official database Kominfo, paling reliable",
+		domain))
+
+	if hasTP {
+		infoBuilder.WriteString(
+			"\n\n*📋 TRUST POSITIF ID*\n" +
+				"📍 Source: `trustpositif.id`\n" +
+				"📊 Limit: *100* check per hari\n" +
+				"💡 Mirror third-party, butuh API key")
+	}
+	if hasNW {
+		infoBuilder.WriteString(
+			"\n\n*🌐 NAWALA CHECKER*\n" +
+				"📍 Source: `nawalacheck.com`\n" +
+				"📊 Limit: *10* check per hari (free tier)\n" +
+				"💡 ISP-based detection (real-world ISP block)")
+	}
+
+	infoBuilder.WriteString("\n━━━━━━━━━━━━━━━━━━\n")
+
+	// Footer hint — sesuai source yg aktif
+	if !hasTP && !hasNW {
+		infoBuilder.WriteString(
+			"_💡 Tambah `TRUSTPOSITIF_API_KEY` atau `NAWALACHECK_API_KEY` di_ `.env` _untuk dapet source tambahan._")
+	} else {
+		infoBuilder.WriteString("_Tip: Kominfo paling reliable & gratis unlimited._")
+	}
+
+	return h.reply(c, infoBuilder.String(), m, tele.ModeMarkdown)
+}
+
+// handleMonitorCheckPickSource: user klik tombol source pilihan → jalanin manual check.
+func (h *Handler) handleMonitorCheckPickSource(c tele.Context, mode checker.SourceMode) error {
+	sess, ok := h.sessions.Get(c.Sender().ID)
+	if !ok || sess.Step != StepMonitorCheckSrc {
+		return c.Edit(textMonitor, monitorMenu(), tele.ModeMarkdown)
+	}
+	domain := sess.Data["check_domain"]
+	if domain == "" {
+		h.sessions.Delete(c.Sender().ID)
+		return c.Edit("❌ Session error — coba lagi via menu Cek Domain", backToMonitor(), tele.ModeMarkdown)
+	}
+	h.sessions.Delete(c.Sender().ID)
+	return h.runManualCheck(c, domain, mode)
+}
+
+// runManualCheck: actual eksekusi check dengan source yg dipilih.
+// Dipanggil dari handleMonitorCheckPickSource.
+func (h *Handler) runManualCheck(c tele.Context, domain string, mode checker.SourceMode) error {
+	var sourceName, sourceSite string
+	switch mode {
+	case checker.SourceKominfo:
+		sourceName = "🏛️ KOMINFO"
+		sourceSite = "trustpositif.komdigi.go.id"
+	case checker.SourceTrustPositif:
+		sourceName = "📋 TRUST POSITIF ID"
+		sourceSite = "trustpositif.id"
+	case checker.SourceNawalaCheck:
+		sourceName = "🌐 NAWALA CHECKER"
+		sourceSite = "nawalacheck.com"
+	default:
+		sourceName = "Unknown"
+		sourceSite = "?"
+	}
+	_ = sourceSite // dipakai di display
+
+	loadingMsg, _ := h.bot.Edit(c.Message(),
+		fmt.Sprintf("⏳ *Cek domain `%s`...*\n\nSumber: %s", domain, sourceName),
 		tele.ModeMarkdown)
 
 	go func() {
-		// 3-ronde manual check untuk akurasi lebih tinggi
-		status, blockedCount, total := checker.CheckDomainManual(domain)
+		status, blockedCount, total := checker.Default().CheckManual(domain, mode)
 		label := h.domains.FindLabel(domain)
 		inList := label != ""
 
@@ -376,34 +474,36 @@ func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
 				"🛑 *DIBLOKIR KOMINFO*\n"+
 					"🌐 Domain: `%s`\n\n"+
 					"⚠️ *Status:* TERBLOKIR\n"+
-					"🔍 *Source Check:* %d/%d blocked%s%s%s\n"+
+					"🔍 *Source:* %s\n"+
+					"🌐 *Via:* `%s`\n"+
+					"📊 *Hasil:* %d/%d blocked%s%s%s\n"+
 					"💡 *Saran:* %s",
-				domain, blockedCount, total, confidenceLine, extraInfo, kategoriInfo, saran)
+				domain, sourceName, sourceSite, blockedCount, total, confidenceLine, extraInfo, kategoriInfo, saran)
 
 		case "SAFE":
 			kategoriInfo := ""
 			if inList {
 				kategoriInfo = fmt.Sprintf("\n📂 *Kategori:* `%s`", label)
 			}
-			srcMode := "dual-source"
-			if total >= 3 {
-				srcMode = "triple-source"
-			}
 			msg = fmt.Sprintf(
 				"🟢 *AMAN*\n"+
 					"🌐 Domain: `%s`\n\n"+
-					"✅ Tidak terdaftar dalam Daftar Blokir KOMINFO\n"+
-					"🔍 *Source Check:* 0/%d blocked _(%s)_%s",
-				domain, total, srcMode, kategoriInfo)
+					"✅ Tidak terdaftar dalam Daftar Blokir\n"+
+					"🔍 *Source:* %s\n"+
+					"🌐 *Via:* `%s`\n"+
+					"📊 *Hasil:* 0/%d blocked%s",
+				domain, sourceName, sourceSite, total, kategoriInfo)
 
 		default:
 			msg = fmt.Sprintf(
 				"⚠️ *Gagal Cek Domain*\n"+
-					"🌐 `%s`\n\n"+
+					"🌐 Domain: `%s`\n\n"+
 					"❌ *Status:* ERROR\n"+
-					"🔍 *Source Check:* 0/%d responded\n"+
-					"💡 *Saran:* Semua source gak respon. Coba lagi 1-2 menit lagi.",
-				domain, total)
+					"🔍 *Source:* %s\n"+
+					"🌐 *Via:* `%s`\n"+
+					"💡 *Saran:* Source gak respon (kemungkinan limit habis / network issue). "+
+					"Coba pilih source lain di menu Cek Domain.",
+				domain, sourceName, sourceSite)
 		}
 		if loadingMsg != nil {
 			h.bot.Edit(loadingMsg, msg, backToMonitor(), tele.ModeMarkdown)

@@ -4,6 +4,7 @@ import (
 	"log"
 	"strings"
 
+	"bongbot/checker"
 	"bongbot/cloudflare"
 	"bongbot/config"
 	"bongbot/rotator"
@@ -197,6 +198,12 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleMonitorStickyClean(c)
 	case cbMonitorForceClean:
 		return h.handleMonitorForceClean(c)
+	case cbMonitorCheckKominfo:
+		return h.handleMonitorCheckPickSource(c, checker.SourceKominfo)
+	case cbMonitorCheckTP:
+		return h.handleMonitorCheckPickSource(c, checker.SourceTrustPositif)
+	case cbMonitorCheckNawala:
+		return h.handleMonitorCheckPickSource(c, checker.SourceNawalaCheck)
 
 	// CF Redirect
 	case cbCF:
@@ -344,6 +351,8 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardMonitorRemove(c, sess)
 	case StepMonitorCheck:
 		return h.wizardMonitorCheck(c, sess)
+	case StepMonitorCheckSrc:
+		return nil // handled via callback button
 	case StepMonitorInterval:
 		return h.wizardMonitorInterval(c, sess)
 	case StepMonitorForceAdd:

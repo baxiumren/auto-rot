@@ -17,7 +17,8 @@ const (
 	StepMonitorAddDomain Step = "monitor_add_domain"
 	StepMonitorAddLabel  Step = "monitor_add_label"
 	StepMonitorRemove    Step = "monitor_remove"
-	StepMonitorCheck     Step = "monitor_check"
+	StepMonitorCheck     Step = "monitor_check"        // user lagi ketik domain
+	StepMonitorCheckSrc  Step = "monitor_check_source" // user lagi pilih source (Kominfo/Nawala)
 	StepMonitorInterval  Step = "monitor_interval"
 	StepMonitorForceAdd  Step = "monitor_force_add"
 

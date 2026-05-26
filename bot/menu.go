@@ -18,6 +18,9 @@ const (
 	cbMonitorSticky      = "monitor_sticky"      // list sticky-blocked + unblock
 	cbMonitorStickyDel   = "monitor_sticky_del"  // remove from sticky (param=domain)
 	cbMonitorStickyClean = "monitor_sticky_cln"  // cleanup all orphan sticky
+	cbMonitorCheckKominfo  = "monitor_check_kominfo"   // manual check via Kominfo komdigi.go.id
+	cbMonitorCheckTP       = "monitor_check_tp"        // manual check via trustpositif.id
+	cbMonitorCheckNawala   = "monitor_check_nawala"    // manual check via NawalaCheck
 	cbMonitorForce       = "monitor_force"       // open force-block menu
 	cbMonitorForceAdd    = "monitor_force_add"   // add force-block (wizard)
 	cbMonitorForceDel    = "monitor_force_del"   // remove force-block (param=domain)

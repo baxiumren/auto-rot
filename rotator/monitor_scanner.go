@@ -29,7 +29,14 @@ const (
 	MonitorAlertWindow  = 2 * time.Minute  // berapa lama alert mode
 	MonitorCooldown     = 10 * time.Minute // diam sebentar setelah alert window
 	MonitorSpamInterval = 25 * time.Second // jarak antar alert spam
-	MonitorMaxConcurrent = 10              // max paralel saat scan
+
+	// Concurrency tuning — confirmed via browser test:
+	//   - Parallel 5+ → Kominfo balikin HTTP 404 anti-spam (~25% requests gagal)
+	//   - Parallel 2-3 → stable, 0 error
+	MonitorMaxConcurrent = 3 // max paralel saat scan (turun dari 10)
+
+	// Delay antar request per worker (anti rate-limit Kominfo)
+	PerCheckDelay = 200 * time.Millisecond
 )
 
 type blockCycle struct {
@@ -208,7 +215,11 @@ func (ms *MonitorScanner) scanOnce() {
 		log.Printf("[MONITOR-SCAN] orphan cleanup: %d sticky, %d force cleared", sCleared, fCleared)
 	}
 
-	// Scan paralel dengan semaphore
+	// Scan paralel dengan semaphore + delay antar request per worker.
+	// Strategy yang udah confirmed work via browser test:
+	//   - Max 3 concurrent (gak overload server Kominfo)
+	//   - Delay 200ms antar request per worker (anti rate-limit)
+	//   - Plus retry on 404 di checker level
 	sem := make(chan struct{}, MonitorMaxConcurrent)
 	var wg sync.WaitGroup
 	for _, e := range entries {
@@ -218,6 +229,9 @@ func (ms *MonitorScanner) scanOnce() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			ms.checkOne(e.domain, e.label)
+			// Sleep AFTER check (sebelum release semaphore slot) — bikin worker
+			// natural rate-limit dirinya sendiri. Worker berikutnya tunggu.
+			time.Sleep(PerCheckDelay)
 		}(e)
 	}
 	wg.Wait()
