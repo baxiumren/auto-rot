@@ -3,6 +3,8 @@ package bot
 import (
 	"log"
 	"strings"
+	"sync"
+	"time"
 
 	"bongbot/checker"
 	"bongbot/cloudflare"
@@ -11,6 +13,15 @@ import (
 	"bongbot/store"
 	tele "gopkg.in/telebot.v3"
 )
+
+// hint cooldown — biar bot gak nyepam reminder kalau user ngetik banyak teks
+// di group chat (misal: diskusi normal yang kebetulan ada dot-nya)
+var (
+	hintMu       sync.Mutex
+	hintLastSent = make(map[int64]time.Time)
+)
+
+const hintCooldown = 3 * time.Minute
 
 type Handler struct {
 	cfg        *config.Config
@@ -346,6 +357,16 @@ func (h *Handler) handleText(c tele.Context) error {
 	sess, ok := h.sessions.Get(c.Sender().ID)
 	if !ok {
 		log.Printf("[TEXT] NO_SESSION user=%d text=%q (ignored)", c.Sender().ID, c.Text())
+		// Soft-nudge: kalau text kayak domain (ada dot), kasih hint sekali — rate-limited
+		text := strings.TrimSpace(c.Text())
+		if looksLikeDomain(text) && shouldSendHint(c.Sender().ID) {
+			h.reply(c,
+				"❓ _Hmm, aku gak nemu wizard aktif buat kamu._\n\n"+
+					"Mau *tambah domain ke Monitor*? Klik *🏠 MENU → 📡 Monitor → ➕ Add Domain* dulu.\n"+
+					"Mau *cek status domain*? Klik *🏠 MENU → 📡 Monitor → 🔍 Cek Domain*.\n\n"+
+					"_(Setiap admin di group punya session terpisah — wizard harus dimulai dengan klik tombol.)_",
+				tele.ModeMarkdown)
+		}
 		return nil
 	}
 
@@ -410,6 +431,37 @@ func (h *Handler) handleText(c tele.Context) error {
 	}
 
 	return nil
+}
+
+// looksLikeDomain — heuristic sederhana: text yang mirip domain biasanya
+// punya dot di tengah, gak ada space, dan minimal 4 karakter. Dipakai untuk
+// kasih soft-nudge ke user yang ketik domain tanpa wizard aktif.
+func looksLikeDomain(text string) bool {
+	if len(text) < 4 || len(text) > 100 {
+		return false
+	}
+	if strings.ContainsAny(text, " \t\n") {
+		return false
+	}
+	// Harus ada dot di tengah (gak di awal/akhir)
+	dot := strings.Index(text, ".")
+	if dot <= 0 || dot >= len(text)-1 {
+		return false
+	}
+	return true
+}
+
+// shouldSendHint rate-limit hint per user — hindari spam reminder di group chat
+// kalau ada admin yang nge-chat banyak teks normal yang kebetulan ada dot-nya.
+func shouldSendHint(userID int64) bool {
+	hintMu.Lock()
+	defer hintMu.Unlock()
+	now := time.Now()
+	if last, ok := hintLastSent[userID]; ok && now.Sub(last) < hintCooldown {
+		return false
+	}
+	hintLastSent[userID] = now
+	return true
 }
 
 // extractParam mengambil param dari callback data.
