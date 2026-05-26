@@ -11,14 +11,20 @@ import (
 )
 
 type Config struct {
-	BotToken          string
-	AllowedChatID     int64
-	AdminIDs          map[int64]bool
-	CFEmail           string
-	CFAPIKey          string
-	CheckInterval     time.Duration
-	TrustPositifKey   string // optional: API key untuk trustpositif.id/api/v1
-	NawalaCheckKey    string // optional: API key untuk api.nawalacheck.com (Source 3)
+	BotToken        string
+	AllowedChatID   int64
+	AdminIDs        map[int64]bool
+	CFEmail         string
+	CFAPIKey        string
+	CheckInterval   time.Duration
+	TrustPositifKey string // optional: API key untuk trustpositif.id/api/v1
+	NawalaCheckKey  string // optional: API key untuk api.nawalacheck.com (Source 3)
+	// ContactUsername: handle Telegram (tanpa @) yang ditampilin ke non-admin
+	// pas mereka coba DM bot. Default: "hokisetahun".
+	ContactUsername string
+	// BotUsername: handle bot sendiri (tanpa @) untuk deep-link "Setup di DM" dari group.
+	// Default kosong → tombol Setup DM gak muncul (fallback ke instruksi text).
+	BotUsername string
 }
 
 func Load() (*Config, error) {
@@ -47,6 +53,12 @@ func Load() (*Config, error) {
 		}
 	}
 
+	contactUser := strings.TrimPrefix(strings.TrimSpace(os.Getenv("CONTACT_USERNAME")), "@")
+	if contactUser == "" {
+		contactUser = "hokisetahun"
+	}
+	botUser := strings.TrimPrefix(strings.TrimSpace(os.Getenv("BOT_USERNAME")), "@")
+
 	return &Config{
 		BotToken:        token,
 		AllowedChatID:   chatID,
@@ -56,6 +68,8 @@ func Load() (*Config, error) {
 		CheckInterval:   interval,
 		TrustPositifKey: os.Getenv("TRUSTPOSITIF_API_KEY"),
 		NawalaCheckKey:  os.Getenv("NAWALACHECK_API_KEY"),
+		ContactUsername: contactUser,
+		BotUsername:     botUser,
 	}, nil
 }
 

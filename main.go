@@ -67,6 +67,12 @@ func main() {
 		log.Fatalf("Bot error: %v", err)
 	}
 
+	// Auto-resolve BotUsername kalau belum di-set di env (buat deep-link Setup di DM)
+	if cfg.BotUsername == "" && b.Me != nil {
+		cfg.BotUsername = b.Me.Username
+		log.Printf("✅ BotUsername auto-detected: @%s", cfg.BotUsername)
+	}
+
 	// Notifier (kirim notif ke chat)
 	notify := &telegramNotifier{b: b, chatID: cfg.AllowedChatID}
 
@@ -140,4 +146,21 @@ func (n *telegramNotifier) Notify(msg string) {
 		return
 	}
 	n.b.Send(&tele.Chat{ID: n.chatID}, msg, tele.ModeMarkdown)
+}
+
+// NotifyBlockedAlert: kirim alert blocked + button "🗑 Hapus dari Monitor"
+// supaya admin bisa quick-action di group tanpa harus DM bot.
+func (n *telegramNotifier) NotifyBlockedAlert(msg, domain string) {
+	if n.chatID == 0 {
+		log.Printf("[NOTIFY-ALERT] domain=%s | %s", domain, msg)
+		return
+	}
+	mkup := &tele.ReplyMarkup{}
+	// Callback "alert_remove|<domain>" — admin-only check di handler
+	mkup.Inline(
+		mkup.Row(mkup.Data("🗑 Hapus dari Monitor", "alert_remove", domain)),
+	)
+	if _, err := n.b.Send(&tele.Chat{ID: n.chatID}, msg, mkup, tele.ModeMarkdown); err != nil {
+		log.Printf("[NOTIFY-ALERT ERROR] %v", err)
+	}
 }

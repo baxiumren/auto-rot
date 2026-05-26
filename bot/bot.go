@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -48,6 +49,17 @@ func (n *botNotifier) Notify(msg string) {
 	}
 }
 
+// NotifyBlockedAlert: alert blocked + button "🗑 Hapus dari Monitor".
+func (n *botNotifier) NotifyBlockedAlert(msg, domain string) {
+	mkup := &tele.ReplyMarkup{}
+	mkup.Inline(
+		mkup.Row(mkup.Data("🗑 Hapus dari Monitor", cbAlertRemove, domain)),
+	)
+	if _, err := n.b.Send(&tele.Chat{ID: n.chatID}, msg, mkup, tele.ModeMarkdown); err != nil {
+		log.Printf("[NOTIFY-ALERT ERROR] %v", err)
+	}
+}
+
 func New(
 	b *tele.Bot,
 	cfg *config.Config,
@@ -86,21 +98,67 @@ func (h *Handler) Register() {
 	h.bot.Handle(tele.OnText, h.handleText)
 }
 
-// isAllowed: boleh pakai bot kalau:
-// 1. Pesan dari grup yang di-allowlist (ALLOWED_CHAT_ID), ATAU
-// 2. DM dari admin (ADMIN_IDS)
-func (h *Handler) isAllowed(c tele.Context) bool {
-	if h.cfg.AllowedChatID != 0 && c.Chat().ID == h.cfg.AllowedChatID {
+// isAllowed: filter siapa yang boleh interact dengan bot.
+//
+// Aturan:
+//   - DM (chat private) → cuma ADMIN_IDS yang boleh.
+//     Non-admin yang DM → di-reject dengan pesan "private bot, contact @owner".
+//   - Group → cuma ALLOWED_CHAT_ID yang dilayani.
+//     Di group, SEMUA member boleh liat menu read-only (Status, List Domain, List CF).
+//     Tapi callback yang butuh admin action (misal Hapus Domain dari alert) di-check
+//     ADMIN_IDS terpisah di handler-nya.
+//
+// Return: (allowed bool, isDM bool). isDM dipake handler buat decide UI (group vs DM).
+func (h *Handler) isAllowed(c tele.Context) (allowed, isDM bool) {
+	isDM = c.Chat().Type == tele.ChatPrivate
+
+	if isDM {
+		// DM cuma untuk admin
+		return h.cfg.IsAdmin(c.Sender().ID), true
+	}
+
+	// Group: cek chat ID di-allowlist
+	if h.cfg.AllowedChatID == 0 || c.Chat().ID != h.cfg.AllowedChatID {
+		return false, false
+	}
+	// Di group, sembarang user boleh view (action button cek admin terpisah)
+	return true, false
+}
+
+// requireAdmin: gate untuk callback yang butuh privilege admin di group.
+// Return true kalau OK, false kalau ditolak (response udah dikirim).
+func (h *Handler) requireAdmin(c tele.Context) bool {
+	if h.cfg.IsAdmin(c.Sender().ID) {
 		return true
 	}
-	return h.cfg.IsAdmin(c.Sender().ID)
+	c.Respond(&tele.CallbackResponse{
+		Text:      "⛔ Cuma admin yang boleh aksi ini.",
+		ShowAlert: true,
+	})
+	return false
 }
 
 func (h *Handler) handleStart(c tele.Context) error {
-	if !h.isAllowed(c) {
-		return nil
+	allowed, isDM := h.isAllowed(c)
+
+	// Non-admin DM → reject template + contact button
+	if isDM && !allowed {
+		return c.Send(
+			fmt.Sprintf(textNonAdminReject, "@"+h.cfg.ContactUsername),
+			nonAdminRejectMenu(h.cfg.ContactUsername),
+			tele.ModeMarkdown,
+		)
 	}
-	// Kirim reply keyboard persistent (4 tombol shortcut di bawah chat input)
+	if !allowed {
+		return nil // group asing → diem aja
+	}
+
+	// Group → tampilin group welcome + 4 tombol read-only
+	if !isDM {
+		return c.Send(textGroupWelcome, groupMenu(h.cfg.BotUsername), tele.ModeMarkdown)
+	}
+
+	// DM admin → tampilin reply keyboard + welcome lengkap
 	h.bot.Send(c.Chat(),
 		"👋 *Selamat datang!*\n\n"+
 			"4 tombol shortcut udah ter-pin di bawah chat — gak perlu ngetik command:\n"+
@@ -110,7 +168,6 @@ func (h *Handler) handleStart(c tele.Context) error {
 			"• *🔍 CARI* — cari domain di mana aja (Monitor / CF / Rotator / sticky)",
 		startReplyKeyboard(), tele.ModeMarkdown)
 
-	// Cek apakah CF credential udah di-set. Kalau belum → arahin ke Settings dulu.
 	if !h.cf.HasCredentials() {
 		return c.Send(
 			"🤖 *BongBot — Auto Domain Rotator*\n\n"+
@@ -137,8 +194,19 @@ func (h *Handler) handleStart(c tele.Context) error {
 }
 
 func (h *Handler) handleMenu(c tele.Context) error {
-	if !h.isAllowed(c) {
+	allowed, isDM := h.isAllowed(c)
+	if !allowed {
+		if isDM {
+			return c.Send(
+				fmt.Sprintf(textNonAdminReject, "@"+h.cfg.ContactUsername),
+				nonAdminRejectMenu(h.cfg.ContactUsername),
+				tele.ModeMarkdown,
+			)
+		}
 		return nil
+	}
+	if !isDM {
+		return c.Send(textGroupWelcome, groupMenu(h.cfg.BotUsername), tele.ModeMarkdown)
 	}
 	return c.Send("🏠 *Menu Utama*\n\nPilih section:", mainMenu(), tele.ModeMarkdown)
 }
@@ -146,7 +214,8 @@ func (h *Handler) handleMenu(c tele.Context) error {
 // ─── Callback Router ──────────────────────────────────────────────────────────
 
 func (h *Handler) handleCallback(c tele.Context) error {
-	if !h.isAllowed(c) {
+	allowed, isDM := h.isAllowed(c)
+	if !allowed {
 		return c.Respond(&tele.CallbackResponse{Text: "⛔ Akses ditolak"})
 	}
 
@@ -164,7 +233,29 @@ func (h *Handler) handleCallback(c tele.Context) error {
 	}
 	_ = param // beberapa handler pakai extractParam(c) langsung
 
-	log.Printf("[CB] unique=%s param=%s user=%d", unique, param, c.Sender().ID)
+	log.Printf("[CB] unique=%s param=%s user=%d isDM=%v", unique, param, c.Sender().ID, isDM)
+
+	// ─── Group whitelist ──────────────────────────────────────────────────────
+	// Di group: cuma 4 callback yg allowed. Sisanya redirect ke "Setup di DM".
+	if !isDM {
+		switch unique {
+		case cbGroupStatus:
+			return h.handleGroupStatus(c)
+		case cbGroupListDomain:
+			return h.handleGroupListDomain(c)
+		case cbGroupListCF:
+			return h.handleGroupListCF(c)
+		case cbAlertRemove:
+			return h.handleAlertRemove(c, param)
+		case cbMain:
+			return c.Edit(textGroupWelcome, groupMenu(h.cfg.BotUsername), tele.ModeMarkdown)
+		default:
+			return c.Respond(&tele.CallbackResponse{
+				Text:      "⚠️ Action ini cuma bisa di DM bot. Klik 🤖 Setup di DM →",
+				ShowAlert: true,
+			})
+		}
+	}
 
 	switch unique {
 	case cbMain:
@@ -352,8 +443,22 @@ func (h *Handler) handleCallback(c tele.Context) error {
 // ─── Text Router (Wizard Steps) ───────────────────────────────────────────────
 
 func (h *Handler) handleText(c tele.Context) error {
-	if !h.isAllowed(c) {
-		log.Printf("[TEXT] DENIED user=%d chat=%d text=%q", c.Sender().ID, c.Chat().ID, c.Text())
+	allowed, isDM := h.isAllowed(c)
+	if !allowed {
+		log.Printf("[TEXT] DENIED user=%d chat=%d isDM=%v text=%q",
+			c.Sender().ID, c.Chat().ID, isDM, c.Text())
+		// Non-admin DM → kirim reject + contact button (sekali, biar mereka tau gimana lanjut)
+		if isDM {
+			return c.Send(
+				fmt.Sprintf(textNonAdminReject, "@"+h.cfg.ContactUsername),
+				nonAdminRejectMenu(h.cfg.ContactUsername),
+				tele.ModeMarkdown,
+			)
+		}
+		return nil
+	}
+	// Di group: gak ada wizard, jadi semua text di-ignore (cuma slash command handler aktif)
+	if !isDM {
 		return nil
 	}
 

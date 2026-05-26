@@ -481,14 +481,14 @@ func (ms *MonitorScanner) sendBlockAlert(cycle *blockCycle, firstTime bool) {
 			"📅 Pertama detect: %s\n"+
 			"⏱ Sudah blocked: %s\n"+
 			"%s%s\n\n"+
-			"_💡 Spam akan terus sampai kamu hapus domain ini dari Monitor._\n"+
+			"_💡 Klik tombol di bawah buat langsung hapus, atau biarin spam terus sampai dihapus._\n"+
 			"_Kominfo udah gak di-cek lagi — sticky cache aktif (hemat API)._",
 		prefix, cycle.label, cycle.domain,
 		cycle.firstDetected.Format("02/01 15:04:05"),
 		durasi,
 		modeText, swapNote,
 	)
-	ms.notify.Notify(msg)
+	ms.notify.NotifyBlockedAlert(msg, cycle.domain)
 }
 
 // ─── Auto-Swap: scan CF rules, swap any matching current URL ─────────────────

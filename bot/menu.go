@@ -86,6 +86,12 @@ const (
 
 	// Cancel
 	cbCancel = "cancel"
+
+	// ─── Group-only callbacks (read-only views) ──────────────────────────────
+	cbGroupStatus     = "g_status"      // health check
+	cbGroupListDomain = "g_list_domain" // count per label
+	cbGroupListCF     = "g_list_cf"     // CF rules summary
+	cbAlertRemove     = "alert_remove"  // hapus domain dari alert (param=domain)
 )
 
 // ─── Menu Texts ───────────────────────────────────────────────────────────────
@@ -262,6 +268,65 @@ func backToRotator() *tele.ReplyMarkup {
 func cancelMenu() *tele.ReplyMarkup {
 	m := &tele.ReplyMarkup{}
 	m.Inline(m.Row(m.Data("❌ Batal", cbCancel)))
+	return m
+}
+
+// ─── Group Menu (Read-only) ───────────────────────────────────────────────────
+// Cuma 4 tombol: Status, List Domain, List CF, Setup di DM.
+// Wizard/setup gak ada di group — semua redirect ke DM.
+
+const textGroupWelcome = "🤖 *BongBot — Auto Domain Rotator*\n\n" +
+	"_Group ini cuma buat notifikasi alert nawala & auto-swap._\n\n" +
+	"Setup & konfigurasi lewat *DM bot* langsung.\n\n" +
+	"Tombol di bawah cuma read-only — buat liat status & list."
+
+func groupMenu(botUsername string) *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	rows := []tele.Row{
+		m.Row(
+			m.Data("🩺 Status Bot", cbGroupStatus),
+			m.Data("📋 List Domain", cbGroupListDomain),
+		),
+		m.Row(
+			m.Data("🔄 List CF", cbGroupListCF),
+		),
+	}
+	if botUsername != "" {
+		// URL button deep-link → langsung jump ke DM bot
+		rows = append(rows, m.Row(
+			m.URL("🤖 Setup di DM →", "https://t.me/"+botUsername+"?start=setup"),
+		))
+	}
+	m.Inline(rows...)
+	return m
+}
+
+func backToGroup(botUsername string) *tele.ReplyMarkup {
+	// Group views balik ke group welcome via "main" callback (yang re-route ke groupMenu di group)
+	return groupMenu(botUsername)
+}
+
+// ─── Non-Admin Reject Template ───────────────────────────────────────────────
+
+const textNonAdminReject = "🔒 *This is private bot*\n\n" +
+	"You need access to use this bot.\n" +
+	"Contact %s for access."
+
+func nonAdminRejectMenu(contactUsername string) *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(m.URL("💬 Chat @"+contactUsername, "https://t.me/"+contactUsername)),
+	)
+	return m
+}
+
+// ─── Alert Action Buttons (per blocked alert) ────────────────────────────────
+
+func alertActionMenu(domain string) *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(m.Data("🗑 Hapus dari Monitor", cbAlertRemove, domain)),
+	)
 	return m
 }
 

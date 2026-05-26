@@ -14,7 +14,11 @@ import (
 )
 
 type Notifier interface {
+	// Notify: plain notification ke alert chat
 	Notify(msg string)
+	// NotifyBlockedAlert: notification untuk domain blocked, attached button
+	// "🗑 Hapus dari Monitor" buat admin quick-action di group.
+	NotifyBlockedAlert(msg, domain string)
 }
 
 type Service struct {
