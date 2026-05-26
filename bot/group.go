@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"bongbot/checker"
+	"bongbot/store"
 	tele "gopkg.in/telebot.v3"
 )
 
@@ -77,7 +78,7 @@ func (h *Handler) handleGroupListDomain(c tele.Context) error {
 	all := h.domains.GetAll()
 	if len(all) == 0 {
 		return c.Edit(
-			"📋 *List Domain (per Label)*\n\n_Belum ada domain di Monitor._\n\nSetup via DM bot 👇",
+			"📋 *List Domain*\n\n_Belum ada domain di Monitor._\n\nSetup via DM bot 👇",
 			groupMenu(h.cfg.BotUsername), tele.ModeMarkdown)
 	}
 
@@ -88,18 +89,44 @@ func (h *Handler) handleGroupListDomain(c tele.Context) error {
 	}
 	sort.Strings(labels)
 
-	var sb strings.Builder
-	sb.WriteString("📋 *List Domain (per Label)*\n═══════════════════════════\n\n")
 	totalDom := 0
 	for _, lbl := range labels {
-		count := len(all[lbl])
-		totalDom += count
-		sb.WriteString(fmt.Sprintf("📂 *%s* — `%d domain`\n", escapeMD(lbl), count))
+		totalDom += len(all[lbl])
 	}
-	sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d domain dalam %d label\n", totalDom, len(labels)))
-	sb.WriteString("\n_Detail per domain → DM bot._")
 
-	return c.Edit(sb.String(), groupMenu(h.cfg.BotUsername), tele.ModeMarkdown)
+	// Build full list dulu (detail per domain)
+	var full strings.Builder
+	full.WriteString("📋 *List Domain*\n═══════════════════════════\n\n")
+	for _, lbl := range labels {
+		domains := append([]string{}, all[lbl]...)
+		sort.Strings(domains)
+		full.WriteString(fmt.Sprintf("📂 *%s* — `%d domain`\n", escapeMD(lbl), len(domains)))
+		for _, d := range domains {
+			full.WriteString(fmt.Sprintf("  • `%s`\n", escapeMD(d)))
+		}
+		full.WriteString("\n")
+	}
+	full.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━\n*Total:* %d domain dalam %d label",
+		totalDom, len(labels)))
+
+	text := full.String()
+
+	// Telegram limit 4096 chars per message. Kalau over → fallback ke ringkasan
+	// per-label dengan instruksi buka DM untuk detail.
+	const tgMaxLen = 3900 // headroom untuk markdown safety
+	if len(text) > tgMaxLen {
+		var summary strings.Builder
+		summary.WriteString("📋 *List Domain (Ringkasan)*\n═══════════════════════════\n\n")
+		summary.WriteString(fmt.Sprintf("⚠️ _Total %d domain — terlalu panjang untuk group._\n_Detail lengkap → buka DM bot._\n\n", totalDom))
+		for _, lbl := range labels {
+			summary.WriteString(fmt.Sprintf("📂 *%s* — `%d domain`\n", escapeMD(lbl), len(all[lbl])))
+		}
+		summary.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d domain dalam %d label",
+			totalDom, len(labels)))
+		text = summary.String()
+	}
+
+	return c.Edit(text, groupMenu(h.cfg.BotUsername), tele.ModeMarkdown)
 }
 
 func (h *Handler) handleGroupListCF(c tele.Context) error {
@@ -120,8 +147,34 @@ func (h *Handler) handleGroupListCF(c tele.Context) error {
 		}
 	}
 
-	var sb strings.Builder
-	sb.WriteString("🔄 *List CF Redirect Rules*\n═══════════════════════════\n\n")
+	// Build full list dulu — include current URL kalau credentials ada
+	hasCreds := h.cf.HasCredentials()
+	currentURLs := make(map[string]string)
+	if hasCreds {
+		// Fetch paralel biar gak lama
+		type result struct {
+			id  string
+			url string
+		}
+		results := make(chan result, len(rules))
+		for _, r := range rules {
+			go func(r store.CFRule) {
+				url, err := h.cf.GetCurrentURL(r)
+				if err == nil {
+					results <- result{r.ID, url}
+				} else {
+					results <- result{r.ID, ""}
+				}
+			}(r)
+		}
+		for range rules {
+			res := <-results
+			currentURLs[res.id] = res.url
+		}
+	}
+
+	var full strings.Builder
+	full.WriteString("🔄 *List CF Redirect Rules*\n═══════════════════════════\n\n")
 	for _, r := range rules {
 		dom := r.Domain
 		if dom == "" {
@@ -135,13 +188,43 @@ func (h *Handler) handleGroupListCF(c tele.Context) error {
 		if pool, ok := rotByRule[r.ID]; ok {
 			rotInfo = fmt.Sprintf("🔄 pool: `%s`", escapeMD(pool))
 		}
-		sb.WriteString(fmt.Sprintf("⚙️ *%s* (%s)\n   🌐 `%s` — %s\n\n",
-			escapeMD(r.Label), typeShort, escapeMD(dom), rotInfo))
+		full.WriteString(fmt.Sprintf("⚙️ *%s* (%s)\n", escapeMD(r.Label), typeShort))
+		full.WriteString(fmt.Sprintf("   🌐 Domain: `%s`\n", escapeMD(dom)))
+		if curURL := currentURLs[r.ID]; curURL != "" {
+			full.WriteString(fmt.Sprintf("   🎯 Target: `%s`\n", escapeMD(curURL)))
+		}
+		full.WriteString(fmt.Sprintf("   %s\n\n", rotInfo))
 	}
-	sb.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━\n*Total:* %d CF Rule\n", len(rules)))
-	sb.WriteString("\n_Setup / ganti URL → DM bot._")
+	full.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━\n*Total:* %d CF Rule", len(rules)))
 
-	return c.Edit(sb.String(), groupMenu(h.cfg.BotUsername), tele.ModeMarkdown)
+	text := full.String()
+	const tgMaxLen = 3900
+	if len(text) > tgMaxLen {
+		// Fallback ke ringkasan tanpa current URL
+		var summary strings.Builder
+		summary.WriteString("🔄 *List CF Redirect Rules (Ringkasan)*\n═══════════════════════════\n\n")
+		summary.WriteString("⚠️ _Detail target URL terlalu panjang — buka DM untuk full info._\n\n")
+		for _, r := range rules {
+			dom := r.Domain
+			if dom == "" {
+				dom = "(no domain)"
+			}
+			typeShort := "v2"
+			if r.Type == "page_rules" {
+				typeShort = "v1"
+			}
+			rotInfo := ""
+			if pool, ok := rotByRule[r.ID]; ok {
+				rotInfo = fmt.Sprintf(" → 🔄 `%s`", escapeMD(pool))
+			}
+			summary.WriteString(fmt.Sprintf("⚙️ *%s* (%s) — `%s`%s\n",
+				escapeMD(r.Label), typeShort, escapeMD(dom), rotInfo))
+		}
+		summary.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d CF Rule", len(rules)))
+		text = summary.String()
+	}
+
+	return c.Edit(text, groupMenu(h.cfg.BotUsername), tele.ModeMarkdown)
 }
 
 // handleAlertRemove — admin klik tombol 🗑 Hapus dari Monitor di alert blocked
