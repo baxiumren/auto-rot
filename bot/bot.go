@@ -178,11 +178,30 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleMonitor(c)
 	case cbMonitorAdd:
 		if param != "" {
-			// Label dipilih dari tombol (bukan ketik manual)
+			// Label dipilih dari tombol (bukan ketik manual).
+			// Defensive: butuh session aktif StepMonitorAddLabel DENGAN domain valid.
+			// Kalau gak ada (stale button dari pesan lama, session expired, dll) →
+			// kasih notif jelas, jangan diam-diam handleMonitorAdd biar user gak bingung.
 			sess, ok := h.sessions.Get(c.Sender().ID)
-			if ok && sess.Step == StepMonitorAddLabel {
-				return h.doAddDomain(c, sess, param)
+			if !ok {
+				return c.Respond(&tele.CallbackResponse{
+					Text:      "⚠️ Wizard udah expired/cancelled. Klik ➕ Add Domain lagi.",
+					ShowAlert: true,
+				})
 			}
+			if sess.Step != StepMonitorAddLabel {
+				return c.Respond(&tele.CallbackResponse{
+					Text:      "⚠️ Tombol ini dari sesi lama. Klik MENU dulu.",
+					ShowAlert: true,
+				})
+			}
+			if sess.Data["domain"] == "" {
+				return c.Respond(&tele.CallbackResponse{
+					Text:      "⚠️ Domain di session kosong. Ulang dari Add Domain.",
+					ShowAlert: true,
+				})
+			}
+			return h.doAddDomain(c, sess, param)
 		}
 		return h.handleMonitorAdd(c)
 	case cbMonitorRemove:

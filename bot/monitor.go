@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"log"
 	"net/url"
 	"sort"
 	"strconv"
@@ -213,6 +214,32 @@ func (h *Handler) handleMonitorAddLabelSelect(c tele.Context) error {
 func (h *Handler) doAddDomain(c tele.Context, sess *Session, label string) error {
 	h.sessions.Delete(c.Sender().ID)
 	domain := sess.Data["domain"]
+
+	// Defensive: validate domain BELUM tersimpan kalau session corrupt / stale.
+	// Skenario: user klik stale inline button (cbMonitorAdd|LABEL) dari pesan
+	// lama, session bukan StepMonitorAddLabel atau domain kosong → jangan save.
+	if domain == "" {
+		log.Printf("[ADD_DOMAIN] REJECT — sess.Data[domain] kosong user=%d label=%s step=%s",
+			c.Sender().ID, label, sess.Step)
+		return h.reply(c,
+			"⚠️ *Session corrupt atau expired*\n\nWizard Add Domain tidak ditemukan untuk kamu. Mulai ulang via *📡 Monitor → ➕ Add Domain*.",
+			backToMonitor(), tele.ModeMarkdown)
+	}
+	if sess.Step != StepMonitorAddLabel {
+		log.Printf("[ADD_DOMAIN] REJECT — sess.Step bukan StepMonitorAddLabel user=%d label=%s step=%s domain=%s",
+			c.Sender().ID, label, sess.Step, domain)
+		return h.reply(c,
+			"⚠️ *Action ini bukan untuk kamu*\n\nKamu lagi di wizard lain, atau tombol ini dari sesi lama. Mulai ulang via *🏠 MENU*.",
+			mainMenu(), tele.ModeMarkdown)
+	}
+	if !looksLikeDomain(domain) {
+		log.Printf("[ADD_DOMAIN] REJECT — domain invalid user=%d label=%s domain=%q",
+			c.Sender().ID, label, domain)
+		return h.reply(c,
+			fmt.Sprintf("⚠️ *Domain tidak valid:* `%s`\n\nCoba ulang via *📡 Monitor → ➕ Add Domain*.", escapeMD(domain)),
+			backToMonitor(), tele.ModeMarkdown)
+	}
+	log.Printf("[ADD_DOMAIN] save user=%d domain=%s label=%s", c.Sender().ID, domain, label)
 
 	isMove, oldLabel := h.domains.Add(domain, label)
 
