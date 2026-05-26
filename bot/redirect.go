@@ -50,6 +50,7 @@ func (h *Handler) handleCFAdd(c tele.Context) error {
 }
 
 func (h *Handler) wizardCFAddLabel(c tele.Context, sess *Session) error {
+	h.showTyping(c)
 	label := strings.TrimSpace(c.Text())
 	log.Printf("[CF_ADD] label step user=%d label=%q", c.Sender().ID, label)
 	if label == "" {
@@ -88,6 +89,7 @@ func (h *Handler) wizardCFAddLabel(c tele.Context, sess *Session) error {
 
 // wizardCFAddDomain — auto-discover zone & rules berdasarkan nama domain.
 func (h *Handler) wizardCFAddDomain(c tele.Context, sess *Session) error {
+	h.showTyping(c) // CF API discovery butuh waktu, kasih feedback langsung
 	domain := store.CleanDomain(c.Text())
 	log.Printf("[CF_ADD] user=%d raw=%q cleaned=%q", c.Sender().ID, c.Text(), domain)
 

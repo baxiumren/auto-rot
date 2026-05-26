@@ -99,6 +99,7 @@ func (h *Handler) handleMonitorAdd(c tele.Context) error {
 }
 
 func (h *Handler) wizardMonitorAddDomain(c tele.Context, sess *Session) error {
+	h.showTyping(c) // feedback langsung biar user tau bot lagi proses
 	domain := store.CleanDomain(c.Text())
 	if domain == "" {
 		return h.reply(c, "❌ Domain tidak valid, coba lagi:", cancelMenu(), tele.ModeMarkdown)
@@ -149,6 +150,7 @@ func (h *Handler) wizardMonitorAddDomain(c tele.Context, sess *Session) error {
 }
 
 func (h *Handler) wizardMonitorAddLabel(c tele.Context, sess *Session) error {
+	h.showTyping(c)
 	rawLabel := strings.TrimSpace(c.Text())
 	label := strings.ToUpper(rawLabel)
 	if label == "" {
@@ -212,6 +214,7 @@ func (h *Handler) handleMonitorAddLabelSelect(c tele.Context) error {
 }
 
 func (h *Handler) doAddDomain(c tele.Context, sess *Session, label string) error {
+	h.showTyping(c) // feedback langsung — handler ini bakal lakukan check nawala (network IO)
 	h.sessions.Delete(c.Sender().ID)
 	domain := sess.Data["domain"]
 
@@ -317,6 +320,7 @@ func (h *Handler) handleMonitorRemove(c tele.Context) error {
 }
 
 func (h *Handler) wizardMonitorRemove(c tele.Context, sess *Session) error {
+	h.showTyping(c)
 	h.sessions.Delete(c.Sender().ID)
 	domain := store.CleanDomain(c.Text())
 	if domain == "" {
@@ -365,6 +369,7 @@ func (h *Handler) handleMonitorCheck(c tele.Context) error {
 
 // wizardMonitorCheck: user ketik domain → bot tampilin source picker (BUKAN langsung cek)
 func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
+	h.showTyping(c)
 	domain := store.CleanDomain(c.Text())
 	if domain == "" {
 		return h.reply(c, "❌ Domain tidak valid", backToMonitor(), tele.ModeMarkdown)

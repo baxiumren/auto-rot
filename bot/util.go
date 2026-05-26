@@ -70,6 +70,20 @@ func (h *Handler) reply(c tele.Context, text string, opts ...interface{}) error 
 	return err
 }
 
+// showTyping — kirim "typing..." action ke chat biar user tau bot lagi proses.
+// Best practice: panggil ini di awal handler yang butuh waktu (network IO,
+// CF API call, dll) sebelum hasil ke-kirim. Error diabaikan (best-effort).
+func (h *Handler) showTyping(c tele.Context) {
+	_ = c.Notify(tele.Typing)
+}
+
+// quickToast — kirim popup notif kecil di top Telegram (untuk feedback callback click).
+// Beda dengan c.Respond() default yang silent, ini nampilin text ke user.
+// Pakai untuk acknowledge slow operation: "⏳ Memproses...", "✅ Done", dll.
+func (h *Handler) quickToast(c tele.Context, text string) {
+	_ = c.Respond(&tele.CallbackResponse{Text: text})
+}
+
 // cancelPriorPrompt — kalau user punya session aktif yang beda dari step baru,
 // edit prompt message lama jadi "❌ Dibatalkan (mulai aksi baru)" biar gak nyangkut
 // nyasar di group chat. Dipanggil di setiap entry-point handler sebelum set session baru.
