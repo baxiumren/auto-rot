@@ -4,6 +4,12 @@ data/*.json
 data/*.bak
 data/backup_*/
 
+# Personal notes (user's local files)
+cara install pribadi.txt
+*pribadi*.txt
+notes.txt
+notes-*.txt
+
 # Compiled binaries — build sendiri di server.
 # /bot match file 'bot' di root, lalu !/bot/ un-ignore folder bot/ source code.
 /bot

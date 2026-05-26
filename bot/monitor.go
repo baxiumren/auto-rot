@@ -209,7 +209,7 @@ func (h *Handler) doAddDomain(c tele.Context, sess *Session, label string) error
 		case "SAFE":
 			statusLine = "🟢 Status: *AMAN*"
 		default:
-			statusLine = "⚠️ Gagal cek status"
+			statusLine = "⚠️ *Status: GAGAL CEK* — TrustPositif API tidak respon. Coba cek manual nanti via *🔍 Cek Domain*."
 		}
 		finalMsg := strings.Replace(loadingMsg, "\n\n⏳ Cek status nawala...", "\n"+statusLine, 1)
 		if targetMsg != nil {
@@ -303,39 +303,51 @@ func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
 		var msg string
 		switch status {
 		case "BLOCKED":
+			// Sumber status: force-block / sticky / fresh API check
+			extraInfo := ""
+			if checker.Default().IsForceBlocked(domain) {
+				extraInfo = "\n🔨 *Source:* Force Block (manual override)"
+			} else if sticky, t := checker.Default().IsSticky(domain); sticky {
+				extraInfo = fmt.Sprintf("\n📌 *Sticky:* Sejak %s", t.Format("02 Jan 2006 15:04"))
+			}
+			kategoriInfo := ""
+			if inList {
+				kategoriInfo = fmt.Sprintf("\n📂 *Kategori:* `%s`", label)
+			}
+
+			// Saran kontekstual
+			saran := "Gunakan domain baru"
+			if blockedCount < total {
+				saran = "Sebagian ronde blocked — recheck dulu sebelum ganti"
+			}
+
 			msg = fmt.Sprintf(
 				"🛑 *DIBLOKIR KOMINFO*\n"+
-					"🌐 Domain: `%s`\n"+
-					"📊 Hasil ronde: *%d/%d* terdeteksi blocked",
-				domain, blockedCount, total)
-			if blockedCount == total {
-				msg += "\n🔒 _Konfirmasi: SEMUA ronde nyata blocked._"
-			} else {
-				msg += "\n⚠️ _Sebagian ronde blocked — kemungkinan baru kena nawala / flaky._"
-			}
-			if checker.Default().IsForceBlocked(domain) {
-				msg += "\n🔨 _Status ini berasal dari **Force Block** manual._"
-			} else if sticky, t := checker.Default().IsSticky(domain); sticky {
-				msg += fmt.Sprintf("\n📌 _Sticky-blocked sejak: %s_", t.Format("02/01 15:04"))
-			}
-			if inList {
-				msg += fmt.Sprintf("\n📂 Kategori: *%s*", label)
-			}
+					"🌐 Domain: `%s`\n\n"+
+					"⚠️ *Status:* TERBLOKIR\n"+
+					"🔍 *API Check:* %d/%d blocked%s%s\n"+
+					"💡 *Saran:* %s",
+				domain, blockedCount, total, extraInfo, kategoriInfo, saran)
+
 		case "SAFE":
-			msg = fmt.Sprintf(
-				"🟢 *AMAN — gak terdeteksi blocked*\n"+
-					"🌐 Domain: `%s`\n"+
-					"📊 Hasil ronde: *0/%d* blocked\n"+
-					"_(Bot cek 3 kali biar yakin.)_",
-				domain, total)
+			kategoriInfo := ""
 			if inList {
-				msg += fmt.Sprintf("\n📂 Kategori: *%s*", label)
+				kategoriInfo = fmt.Sprintf("\n📂 *Kategori:* `%s`", label)
 			}
+			msg = fmt.Sprintf(
+				"🟢 *AMAN*\n"+
+					"🌐 Domain: `%s`\n\n"+
+					"✅ Tidak terdaftar dalam Daftar Blokir KOMINFO\n"+
+					"🔍 *API Check:* 0/%d blocked%s",
+				domain, total, kategoriInfo)
+
 		default:
 			msg = fmt.Sprintf(
-				"⚠️ *Gagal cek domain*\n"+
+				"⚠️ *Gagal Cek Domain*\n"+
 					"🌐 `%s`\n\n"+
-					"_TrustPositif gak respon. Coba lagi sebentar lagi._", domain)
+					"❌ *Status:* ERROR\n"+
+					"💡 *Saran:* TrustPositif gak respon. Coba lagi 1-2 menit lagi.",
+				domain)
 		}
 		if loadingMsg != nil {
 			h.bot.Edit(loadingMsg, msg, backToMonitor(), tele.ModeMarkdown)

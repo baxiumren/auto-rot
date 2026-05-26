@@ -1,49 +1,56 @@
 package checker
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/PuerkitoBio/goquery"
 )
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const (
-	MaxRetries      = 2
-	RoundsAuto      = 2 // ronde untuk auto-check (rotator)
-	RoundsManual    = 3 // ronde untuk manual check (user)
-	StickyFile      = "data/sticky_blocked.json"
-	APITimeout      = 20 * time.Second
+	MaxRetries   = 2
+	RoundsAuto   = 2 // ronde untuk auto-check (rotator)
+	RoundsManual = 3 // ronde untuk manual check (user)
+	StickyFile   = "data/sticky_blocked.json"
+	APITimeout   = 30 * time.Second
 )
 
-// ─── HTTP Client (shared, with sane timeout) ──────────────────────────────────
+// Endpoint list — kalau satu down, coba yang lain (urut dari paling cepat)
+var apiEndpoints = []string{
+	"https://trustpositif.komdigi.go.id/Rest_server/getrecordsname_home",
+	"https://trustpositif.app/Rest_server/getrecordsname_home",
+	"https://trustpositif.kominfo.go.id/Rest_server/getrecordsname_home",
+}
+
+// ─── HTTP Client (shared, optimized for keep-alive) ──────────────────────────
 
 var httpClient = &http.Client{
-	Timeout:       APITimeout,
-	CheckRedirect: func(req *http.Request, via []*http.Request) error { return nil },
+	Timeout: APITimeout,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	},
 }
 
 // ─── Checker = stateful sticky+force store + API caller ──────────────────────
 
 type Checker struct {
 	stickyMu sync.RWMutex
-	sticky   map[string]time.Time // domain → waktu pertama ke-detect blocked
+	sticky   map[string]time.Time
 
 	forceMu sync.RWMutex
-	force   map[string]string // domain → label (alasan force)
+	force   map[string]string
 }
 
-// global default checker instance (untuk backward compat dengan rotator/bot lama)
 var defaultChecker = NewChecker()
 
 func NewChecker() *Checker {
@@ -57,7 +64,6 @@ func NewChecker() *Checker {
 
 // ─── Public Domain Cleaner ────────────────────────────────────────────────────
 
-// Clean strip prefix http(s):// dan www., trim trailing slash.
 func Clean(domain string) string {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	domain = strings.TrimPrefix(domain, "https://")
@@ -144,9 +150,7 @@ func (c *Checker) GetStickyList() map[string]time.Time {
 }
 
 // CleanOrphans hapus semua entry sticky+force yang gak ada di set validDomains.
-// Return: jumlah sticky cleared, force cleared.
 func (c *Checker) CleanOrphans(validDomains map[string]bool) (stickyCleared, forceCleared int) {
-	// Sticky
 	c.stickyMu.Lock()
 	for d := range c.sticky {
 		if !validDomains[d] {
@@ -156,7 +160,6 @@ func (c *Checker) CleanOrphans(validDomains map[string]bool) (stickyCleared, for
 	}
 	c.stickyMu.Unlock()
 
-	// Force
 	c.forceMu.Lock()
 	for d := range c.force {
 		if !validDomains[d] {
@@ -172,7 +175,6 @@ func (c *Checker) CleanOrphans(validDomains map[string]bool) (stickyCleared, for
 	return stickyCleared, forceCleared
 }
 
-// CountOrphans hitung sticky+force entry yang gak ada di validDomains.
 func (c *Checker) CountOrphans(validDomains map[string]bool) (stickyOrphan, forceOrphan int) {
 	c.stickyMu.RLock()
 	for d := range c.sticky {
@@ -193,7 +195,7 @@ func (c *Checker) CountOrphans(validDomains map[string]bool) (stickyOrphan, forc
 	return stickyOrphan, forceOrphan
 }
 
-// ─── Force Block API (manual override) ────────────────────────────────────────
+// ─── Force Block API ─────────────────────────────────────────────────────────
 
 func (c *Checker) IsForceBlocked(domain string) bool {
 	c.forceMu.RLock()
@@ -231,8 +233,8 @@ func (c *Checker) GetForceList() map[string]string {
 
 // ─── Core Check Methods ──────────────────────────────────────────────────────
 
-// CheckFast: untuk rotator (auto-check). 2 ronde, hit sticky+force dulu.
-// Return "BLOCKED" kalau salah satu ronde dapat BLOCKED, kalau gak "SAFE".
+// CheckFast: untuk rotator. 2 ronde, hit sticky+force dulu.
+// Return: "BLOCKED" | "SAFE" | "ERROR"
 func (c *Checker) CheckFast(domain string) string {
 	domain = Clean(domain)
 	if c.IsForceBlocked(domain) {
@@ -242,21 +244,28 @@ func (c *Checker) CheckFast(domain string) string {
 		return "BLOCKED"
 	}
 
+	gotSafe := false
 	for round := 1; round <= RoundsAuto; round++ {
 		result := c.doAPICheck(domain, round)
 		if result == "BLOCKED" {
 			c.AddSticky(domain)
 			return "BLOCKED"
 		}
-		if round < RoundsAuto && result == "SAFE" {
-			time.Sleep(100 * time.Millisecond)
+		if result == "SAFE" {
+			gotSafe = true
+			if round < RoundsAuto {
+				time.Sleep(100 * time.Millisecond)
+			}
 		}
+	}
+	if !gotSafe {
+		log.Printf("[NAWALA] %s: SEMUA ronde gagal → return ERROR", domain)
+		return "ERROR"
 	}
 	return "SAFE"
 }
 
 // CheckManual: untuk user manual cek. 3 ronde, return status + count BLOCKED/total.
-// Lebih akurat — kalau 0/3 BLOCKED → SAFE pasti; kalau 1+/3 → BLOCKED.
 func (c *Checker) CheckManual(domain string) (status string, blockedCount, totalRounds int) {
 	domain = Clean(domain)
 	if c.IsForceBlocked(domain) {
@@ -266,10 +275,17 @@ func (c *Checker) CheckManual(domain string) (status string, blockedCount, total
 		return "BLOCKED", RoundsManual, RoundsManual
 	}
 
+	gotSafe := false
+	errorCount := 0
 	for round := 1; round <= RoundsManual; round++ {
 		result := c.doAPICheck(domain, round)
-		if result == "BLOCKED" {
+		switch result {
+		case "BLOCKED":
 			blockedCount++
+		case "SAFE":
+			gotSafe = true
+		case "ERROR":
+			errorCount++
 		}
 		if round < RoundsManual {
 			time.Sleep(200 * time.Millisecond)
@@ -280,141 +296,176 @@ func (c *Checker) CheckManual(domain string) (status string, blockedCount, total
 		c.AddSticky(domain)
 		return "BLOCKED", blockedCount, RoundsManual
 	}
+	if !gotSafe {
+		log.Printf("[NAWALA] %s: %d/%d ronde error → return ERROR", domain, errorCount, RoundsManual)
+		return "ERROR", 0, RoundsManual
+	}
 	return "SAFE", 0, RoundsManual
 }
 
-// doAPICheck — internal: hit TrustPositif API dengan retry.
+// doAPICheck — coba SEMUA endpoint, kembalikan hasil pertama yang sukses.
 func (c *Checker) doAPICheck(domain string, round int) string {
-	for attempt := 1; attempt <= MaxRetries; attempt++ {
-		status, err := checkTrustPositif(domain)
-		if err != nil {
-			log.Printf("[NAWALA] round=%d attempt=%d %s error: %v", round, attempt, domain, err)
-			if attempt < MaxRetries {
-				time.Sleep(500 * time.Millisecond)
-				continue
+	var lastErr error
+	for _, endpoint := range apiEndpoints {
+		for attempt := 1; attempt <= MaxRetries; attempt++ {
+			status, err := checkSingleEndpoint(domain, endpoint)
+			if err != nil {
+				lastErr = err
+				log.Printf("[NAWALA] round=%d attempt=%d endpoint=%s %s → %v",
+					round, attempt, shortEndpoint(endpoint), domain, err)
+				if attempt < MaxRetries {
+					time.Sleep(300 * time.Millisecond)
+					continue
+				}
+				break // pindah ke endpoint berikutnya
 			}
-			return "ERROR"
+			log.Printf("[NAWALA] round=%d endpoint=%s %s → %s",
+				round, shortEndpoint(endpoint), domain, status)
+			return status
 		}
-		result := tpToStatus(status)
-		log.Printf("[NAWALA] round=%d %s → %s (raw=%s)", round, domain, result, status)
-		return result
 	}
+	log.Printf("[NAWALA] round=%d %s: SEMUA endpoint gagal, last err: %v", round, domain, lastErr)
 	return "ERROR"
 }
 
-// ─── Backward-compat package functions (pakai default checker) ────────────────
+// shortEndpoint helper buat log lebih ringkas.
+func shortEndpoint(url string) string {
+	url = strings.TrimPrefix(url, "https://")
+	if i := strings.Index(url, "/"); i > 0 {
+		return url[:i]
+	}
+	return url
+}
 
-// CheckDomain: legacy API, alias ke defaultChecker.CheckFast.
+// ─── HTTP-Level API Call (POST + JSON parse) ─────────────────────────────────
+
+// checkSingleEndpoint POST ke endpoint dengan body "name=domain" dan parse JSON.
+func checkSingleEndpoint(domain, endpoint string) (string, error) {
+	body := bytes.NewBufferString("name=" + domain)
+
+	req, err := http.NewRequest("POST", endpoint, body)
+	if err != nil {
+		return "", fmt.Errorf("req create: %w", err)
+	}
+
+	// Headers PENTING — harus mimic browser Indonesia
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7")
+	req.Header.Set("Origin", "https://trustpositif.komdigi.go.id")
+	req.Header.Set("Referer", "https://trustpositif.komdigi.go.id/")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Cache-Control", "no-cache")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read body: %w", err)
+	}
+
+	return parseResponse(domain, respBody)
+}
+
+// parseResponse parse multi-format JSON response dari TrustPositif.
+// Format paling umum: {"values":[{"Domain":"...","Status":"Ada"}],"response":1}
+// "Ada" = BLOCKED, "Tidak Ada" / anything else = SAFE
+func parseResponse(domain string, body []byte) (string, error) {
+	// Format 1 (paling umum): {"values":[{"Domain":"...","Status":"Ada"}]}
+	var format1 struct {
+		Values []struct {
+			Domain string `json:"Domain"`
+			Status string `json:"Status"`
+		} `json:"values"`
+		Response int `json:"response"`
+	}
+	if err := json.Unmarshal(body, &format1); err == nil && len(format1.Values) > 0 {
+		for _, item := range format1.Values {
+			if strings.EqualFold(item.Domain, domain) {
+				if strings.EqualFold(strings.TrimSpace(item.Status), "Ada") {
+					return "BLOCKED", nil
+				}
+				return "SAFE", nil
+			}
+		}
+		// values ada tapi domain gak ke-match → asumsikan SAFE (gak terdaftar di blocklist)
+		return "SAFE", nil
+	}
+
+	// Format 2: {"data":[{"domain":"...","status":"diblokir"}]}
+	var format2 struct {
+		Data []struct {
+			Domain string `json:"domain"`
+			Status string `json:"status"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &format2); err == nil && len(format2.Data) > 0 {
+		for _, item := range format2.Data {
+			if strings.EqualFold(item.Domain, domain) {
+				s := strings.ToLower(item.Status)
+				if strings.Contains(s, "diblokir") || strings.Contains(s, "blocked") || strings.Contains(s, "ada") {
+					return "BLOCKED", nil
+				}
+				return "SAFE", nil
+			}
+		}
+		return "SAFE", nil
+	}
+
+	// Format 3: empty values = SAFE (gak ada di blocklist)
+	if strings.Contains(string(body), `"values":[]`) || strings.Contains(string(body), `"values": []`) {
+		return "SAFE", nil
+	}
+
+	// Format 4: {"blocked":true/false}
+	var format4 struct {
+		Blocked bool `json:"blocked"`
+	}
+	if err := json.Unmarshal(body, &format4); err == nil {
+		if format4.Blocked {
+			return "BLOCKED", nil
+		}
+		return "SAFE", nil
+	}
+
+	// Last resort: fallback keyword scan
+	lower := strings.ToLower(string(body))
+	if strings.Contains(lower, `"status":"ada"`) || strings.Contains(lower, `"status": "ada"`) {
+		return "BLOCKED", nil
+	}
+	if strings.Contains(lower, `"status":"tidak ada"`) {
+		return "SAFE", nil
+	}
+
+	return "", fmt.Errorf("unknown response format: %s", truncateForLog(string(body), 200))
+}
+
+func truncateForLog(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
+}
+
+// ─── Backward-compat package functions ───────────────────────────────────────
+
 func CheckDomain(domain string) string {
 	return defaultChecker.CheckFast(domain)
 }
 
-// CheckDomainManual: 3-round manual check via default checker.
 func CheckDomainManual(domain string) (status string, blockedCount, total int) {
 	return defaultChecker.CheckManual(domain)
 }
 
-// Default mengembalikan instance default — biar bot bisa akses sticky/force.
 func Default() *Checker {
 	return defaultChecker
-}
-
-// ─── HTTP-Level Scraping (TrustPositif) ──────────────────────────────────────
-
-func checkTrustPositif(domain string) (string, error) {
-	const baseURL = "https://trustpositif.komdigi.go.id/"
-
-	req, _ := http.NewRequest("GET", baseURL, nil)
-	setHeaders(req)
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-
-	csrf := extractCSRF(string(body))
-	if csrf == "" {
-		return "", fmt.Errorf("csrf_token tidak ketemu")
-	}
-
-	checkURL := fmt.Sprintf(
-		"https://trustpositif.komdigi.go.id/welcome?csrf_token=%s&recaptcha_token=&domains=%s",
-		url.QueryEscape(csrf), url.QueryEscape(domain),
-	)
-	req2, _ := http.NewRequest("GET", checkURL, nil)
-	setHeaders(req2)
-	req2.Header.Set("Referer", baseURL)
-
-	resp2, err := httpClient.Do(req2)
-	if err != nil {
-		return "", err
-	}
-	defer resp2.Body.Close()
-	body2, _ := io.ReadAll(resp2.Body)
-
-	return parseHTML(string(body2), domain)
-}
-
-func setHeaders(req *http.Request) {
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7")
-	req.Header.Set("Connection", "keep-alive")
-}
-
-func extractCSRF(html string) string {
-	if m := regexp.MustCompile(`csrf_token=([a-fA-F0-9]+)`).FindStringSubmatch(html); len(m) > 1 {
-		return m[1]
-	}
-	if m := regexp.MustCompile(`csrf_token["'\s:=]+([a-fA-F0-9]+)`).FindStringSubmatch(html); len(m) > 1 {
-		return m[1]
-	}
-	return ""
-}
-
-func parseHTML(html, domain string) (string, error) {
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
-	if err != nil {
-		return "", err
-	}
-	var found string
-	doc.Find("table tr").Each(func(_ int, s *goquery.Selection) {
-		tds := s.Find("td")
-		if tds.Length() >= 2 {
-			if normalize(tds.Eq(0).Text()) == normalize(domain) {
-				found = strings.TrimSpace(tds.Eq(1).Text())
-			}
-		}
-	})
-	if found == "" {
-		text := strings.ToLower(doc.Text())
-		if strings.Contains(text, "tidak ada") {
-			return "Tidak Ada", nil
-		}
-		if strings.Contains(text, "ada") {
-			return "Ada", nil
-		}
-		return "", fmt.Errorf("status tidak ketemu di HTML")
-	}
-	return found, nil
-}
-
-func normalize(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	s = strings.TrimPrefix(s, "http://")
-	s = strings.TrimPrefix(s, "https://")
-	s = strings.TrimPrefix(s, "www.")
-	return strings.TrimSuffix(s, "/")
-}
-
-func tpToStatus(status string) string {
-	s := strings.ToLower(strings.TrimSpace(status))
-	if strings.Contains(s, "tidak ada") {
-		return "SAFE"
-	}
-	if strings.Contains(s, "ada") {
-		return "BLOCKED"
-	}
-	return "ERROR"
 }

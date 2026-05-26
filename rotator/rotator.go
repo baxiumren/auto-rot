@@ -115,6 +115,12 @@ func (s *Service) checkAndRotate(rot store.RotatorRule) {
 	status := checker.CheckDomain(currentHost)
 	log.Printf("[ROTATOR] Rule=%s host=%s status=%s", rot.Label, currentHost, status)
 
+	// JANGAN apa-apain kalau ERROR — biar gak salah swap saat API timeout
+	if status == "ERROR" {
+		log.Printf("[ROTATOR] %s: API ERROR, skip cycle ini (gak swap)", rot.Label)
+		return
+	}
+
 	if status == "SAFE" {
 		// Clear dari blocked list jika sudah aman
 		s.mu.Lock()

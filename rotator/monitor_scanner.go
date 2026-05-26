@@ -195,6 +195,12 @@ func (ms *MonitorScanner) scanOnce() {
 func (ms *MonitorScanner) checkOne(domain, label string) {
 	status := ms.chk.CheckFast(domain)
 
+	// Skip ERROR — JANGAN treat sebagai SAFE atau BLOCKED, biar gak salah swap
+	if status == "ERROR" {
+		log.Printf("[MONITOR-SCAN] %s: ERROR (API timeout/unreachable) — skip cycle", domain)
+		return
+	}
+
 	ms.mu.Lock()
 	cycle, exists := ms.blocked[domain]
 	ms.mu.Unlock()
