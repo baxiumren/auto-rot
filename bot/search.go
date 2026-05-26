@@ -24,7 +24,7 @@ func (h *Handler) handleSearchPrompt(c tele.Context) error {
 		Step: StepGlobalSearch,
 		Data: map[string]string{},
 	})
-	return c.Send(
+	return h.reply(c, 
 		"🔍 *Pencarian Global Domain*\n\n"+
 			"Ketik nama domain yang mau dicari:\n\n"+
 			"*Contoh:* `example.com` atau `tokoku.id`\n\n"+
@@ -37,7 +37,7 @@ func (h *Handler) wizardGlobalSearch(c tele.Context, sess *Session) error {
 	query := store.CleanDomain(c.Text())
 	h.sessions.Delete(c.Sender().ID)
 	if query == "" {
-		return c.Send("❌ Domain gak valid. Coba lagi via 🔍 CARI.", backToMain(), tele.ModeMarkdown)
+		return h.reply(c, "❌ Domain gak valid. Coba lagi via 🔍 CARI.", backToMain(), tele.ModeMarkdown)
 	}
 
 	var sb strings.Builder
@@ -157,5 +157,5 @@ func (h *Handler) wizardGlobalSearch(c tele.Context, sess *Session) error {
 		sb.WriteString("_Klik 🔍 CARI lagi untuk pencarian baru._")
 	}
 
-	return c.Send(sb.String(), backToMain(), tele.ModeMarkdown)
+	return h.reply(c, sb.String(), backToMain(), tele.ModeMarkdown)
 }

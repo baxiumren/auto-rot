@@ -2,9 +2,13 @@ package bot
 
 import (
 	"sync"
+	"time"
 
 	tele "gopkg.in/telebot.v3"
 )
+
+// SessionTTL: session auto-expire setelah ini (cegah stale state nyangkut)
+const SessionTTL = 5 * time.Minute
 
 type Step string
 
@@ -50,6 +54,7 @@ type Session struct {
 	Step      Step
 	Data      map[string]string
 	PromptMsg *tele.Message
+	CreatedAt time.Time // untuk TTL — session auto-expire setelah SessionTTL
 }
 
 type sessionStore struct {
@@ -58,12 +63,16 @@ type sessionStore struct {
 }
 
 func newSessionStore() *sessionStore {
-	return &sessionStore{data: make(map[int64]*Session)}
+	s := &sessionStore{data: make(map[int64]*Session)}
+	go s.cleanupLoop() // periodic cleanup orphan/expired sessions
+	return s
 }
 
 func (s *sessionStore) Set(userID int64, sess *Session) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Set/refresh CreatedAt setiap kali session di-update
+	sess.CreatedAt = time.Now()
 	s.data[userID] = sess
 }
 
@@ -71,11 +80,35 @@ func (s *sessionStore) Get(userID int64) (*Session, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sess, ok := s.data[userID]
-	return sess, ok
+	if !ok {
+		return nil, false
+	}
+	// Cek TTL — kalau expired, hapus & return not found
+	if !sess.CreatedAt.IsZero() && time.Since(sess.CreatedAt) > SessionTTL {
+		delete(s.data, userID)
+		return nil, false
+	}
+	return sess, true
 }
 
 func (s *sessionStore) Delete(userID int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.data, userID)
+}
+
+// cleanupLoop periodik hapus session yang udah expired.
+// Cegah memory leak + stale state nyangkut.
+func (s *sessionStore) cleanupLoop() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		s.mu.Lock()
+		for userID, sess := range s.data {
+			if !sess.CreatedAt.IsZero() && time.Since(sess.CreatedAt) > SessionTTL {
+				delete(s.data, userID)
+			}
+		}
+		s.mu.Unlock()
+	}
 }

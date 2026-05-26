@@ -80,17 +80,34 @@ func (s *Service) Start() {
 }
 
 func (s *Service) loop() {
+	iter := 0
 	for {
+		iter++
 		s.mu.RLock()
 		interval := s.interval
 		s.mu.RUnlock()
 
 		rotators := s.rotators.GetAll()
+		activeCount := 0
 		for _, rot := range rotators {
-			if !rot.Active {
-				continue
+			if rot.Active {
+				activeCount++
 			}
-			go s.checkAndRotate(rot)
+		}
+
+		if len(rotators) == 0 {
+			log.Printf("[ROTATOR] cycle #%d SKIP — gak ada rotator config. Sleep %v...", iter, interval)
+		} else if activeCount == 0 {
+			log.Printf("[ROTATOR] cycle #%d SKIP — %d rotator semua PAUSE. Sleep %v...", iter, len(rotators), interval)
+		} else {
+			log.Printf("[ROTATOR] cycle #%d START — cek %d rotator aktif (%d total). Sleep %v setelah selesai...",
+				iter, activeCount, len(rotators), interval)
+			for _, rot := range rotators {
+				if !rot.Active {
+					continue
+				}
+				go s.checkAndRotate(rot)
+			}
 		}
 		time.Sleep(interval)
 	}

@@ -131,13 +131,13 @@ func (h *Handler) handleRotatorPoolSelect(c tele.Context) error {
 func (h *Handler) wizardRotatorAddLabel(c tele.Context, sess *Session) error {
 	label := strings.TrimSpace(c.Text())
 	if label == "" {
-		return c.Send("❌ Label tidak boleh kosong", backToRotator(), tele.ModeMarkdown)
+		return h.reply(c, "❌ Label tidak boleh kosong", backToRotator(), tele.ModeMarkdown)
 	}
 	h.sessions.Delete(c.Sender().ID)
 
 	cfRule, ok := h.cfrules.GetByID(sess.Data["cf_rule_id"])
 	if !ok {
-		return c.Send("❌ CF Rule tidak ditemukan", backToRotator(), tele.ModeMarkdown)
+		return h.reply(c, "❌ CF Rule tidak ditemukan", backToRotator(), tele.ModeMarkdown)
 	}
 
 	rule := store.RotatorRule{
@@ -147,7 +147,7 @@ func (h *Handler) wizardRotatorAddLabel(c tele.Context, sess *Session) error {
 	}
 	h.rotators.Add(rule)
 
-	return c.Send(
+	return h.reply(c, 
 		fmt.Sprintf(
 			"✅ *Rotator aktif!*\n\n"+
 				"📛 Label: *%s*\n"+

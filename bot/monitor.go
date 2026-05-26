@@ -98,7 +98,7 @@ func (h *Handler) handleMonitorAdd(c tele.Context) error {
 func (h *Handler) wizardMonitorAddDomain(c tele.Context, sess *Session) error {
 	domain := store.CleanDomain(c.Text())
 	if domain == "" {
-		return c.Send("❌ Domain tidak valid, coba lagi:", cancelMenu(), tele.ModeMarkdown)
+		return h.reply(c, "❌ Domain tidak valid, coba lagi:", cancelMenu(), tele.ModeMarkdown)
 	}
 	sess.Data["domain"] = domain
 	sess.Step = StepMonitorAddLabel
@@ -141,11 +141,54 @@ func (h *Handler) wizardMonitorAddDomain(c tele.Context, sess *Session) error {
 }
 
 func (h *Handler) wizardMonitorAddLabel(c tele.Context, sess *Session) error {
-	label := strings.ToUpper(strings.TrimSpace(c.Text()))
+	rawLabel := strings.TrimSpace(c.Text())
+	label := strings.ToUpper(rawLabel)
 	if label == "" {
-		return c.Send("❌ Label tidak boleh kosong, coba lagi:", cancelMenu(), tele.ModeMarkdown)
+		return h.reply(c, "❌ Label tidak boleh kosong, coba lagi:", cancelMenu(), tele.ModeMarkdown)
 	}
+
+	// 🛡️ Validasi: label seharusnya nama kategori, bukan API key/token panjang aneh
+	if len(label) > 40 {
+		h.sessions.Delete(c.Sender().ID)
+		return h.reply(c, 
+			"⚠️ *Label kelihatannya bukan kategori biasa* (>40 karakter).\n\n"+
+				"Mungkin kamu salah paste API key / token di sini? Wizard dibatalkan demi keamanan.\n\n"+
+				"Coba lagi dengan label pendek seperti `KWAI`, `MONEYSITE`, `PROMO`.",
+			backToMonitor(), tele.ModeMarkdown)
+	}
+	// Cek karakter mencurigakan (API key biasanya alphanumeric panjang tanpa spasi)
+	if isLikelyAPIKey(rawLabel) {
+		h.sessions.Delete(c.Sender().ID)
+		return h.reply(c, 
+			"🛡️ *Label kelihatan seperti API key/token!*\n\n"+
+				"Demi keamanan, wizard dibatalkan. Kalau memang mau pakai itu sebagai label, "+
+				"gunakan format yg lebih pendek atau pisah dengan dash/underscore.",
+			backToMonitor(), tele.ModeMarkdown)
+	}
+
 	return h.doAddDomain(c, sess, label)
+}
+
+// isLikelyAPIKey: heuristic deteksi API key. Long string alphanumeric tanpa pemisah.
+func isLikelyAPIKey(s string) bool {
+	if len(s) < 30 {
+		return false
+	}
+	// Hitung karakter alphanumeric
+	alnum := 0
+	hasSeparator := false
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			alnum++
+		} else if r == ' ' || r == '-' || r == '_' || r == '.' {
+			hasSeparator = true
+		}
+	}
+	// Kalau hampir semua alphanumeric (>= 95%) DAN minim separator → kemungkinan token
+	if !hasSeparator && float64(alnum)/float64(len(s)) > 0.95 {
+		return true
+	}
+	return false
 }
 
 func (h *Handler) handleMonitorAddLabelSelect(c tele.Context) error {
@@ -242,11 +285,11 @@ func (h *Handler) wizardMonitorRemove(c tele.Context, sess *Session) error {
 	h.sessions.Delete(c.Sender().ID)
 	domain := store.CleanDomain(c.Text())
 	if domain == "" {
-		return c.Send("❌ Domain tidak valid", backToMonitor(), tele.ModeMarkdown)
+		return h.reply(c, "❌ Domain tidak valid", backToMonitor(), tele.ModeMarkdown)
 	}
 	label, found := h.domains.Remove(domain)
 	if !found {
-		return c.Send(
+		return h.reply(c, 
 			fmt.Sprintf("⚠️ Domain `%s` tidak ditemukan di list", domain),
 			backToMonitor(), tele.ModeMarkdown)
 	}
@@ -261,7 +304,7 @@ func (h *Handler) wizardMonitorRemove(c tele.Context, sess *Session) error {
 	if forceCleared {
 		msg += "\n🔨 _Force-block ke-clear._"
 	}
-	return c.Send(msg, backToMonitor(), tele.ModeMarkdown)
+	return h.reply(c, msg, backToMonitor(), tele.ModeMarkdown)
 }
 
 // ─── Check Domain ─────────────────────────────────────────────────────────────
@@ -288,7 +331,7 @@ func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
 	h.sessions.Delete(c.Sender().ID)
 	domain := store.CleanDomain(c.Text())
 	if domain == "" {
-		return c.Send("❌ Domain tidak valid", backToMonitor(), tele.ModeMarkdown)
+		return h.reply(c, "❌ Domain tidak valid", backToMonitor(), tele.ModeMarkdown)
 	}
 	loadingMsg, _ := h.bot.Send(c.Chat(),
 		fmt.Sprintf("⏳ *Cek domain `%s`...*\n\n_Bot lagi cek 3 ronde ke TrustPositif untuk akurasi maksimal._", domain),
@@ -321,12 +364,12 @@ func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
 				saran = "Sebagian source confirm — recheck dulu sebelum ganti"
 			}
 
+			// Confidence indicator dinamis
 			confidenceLine := ""
-			switch blockedCount {
-			case 2:
-				confidenceLine = " ✅ *(2/2 sources confirm)*"
-			case 1:
-				confidenceLine = " ⚠️ *(cuma 1/2 source confirm)*"
+			if blockedCount == total && total > 0 {
+				confidenceLine = fmt.Sprintf(" ✅ *(%d/%d sources confirm)*", blockedCount, total)
+			} else if blockedCount > 0 {
+				confidenceLine = fmt.Sprintf(" ⚠️ *(cuma %d/%d source confirm)*", blockedCount, total)
 			}
 
 			msg = fmt.Sprintf(
@@ -342,21 +385,25 @@ func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
 			if inList {
 				kategoriInfo = fmt.Sprintf("\n📂 *Kategori:* `%s`", label)
 			}
+			srcMode := "dual-source"
+			if total >= 3 {
+				srcMode = "triple-source"
+			}
 			msg = fmt.Sprintf(
 				"🟢 *AMAN*\n"+
 					"🌐 Domain: `%s`\n\n"+
 					"✅ Tidak terdaftar dalam Daftar Blokir KOMINFO\n"+
-					"🔍 *Source Check:* 0/%d blocked _(dual-source)_%s",
-				domain, total, kategoriInfo)
+					"🔍 *Source Check:* 0/%d blocked _(%s)_%s",
+				domain, total, srcMode, kategoriInfo)
 
 		default:
 			msg = fmt.Sprintf(
 				"⚠️ *Gagal Cek Domain*\n"+
 					"🌐 `%s`\n\n"+
 					"❌ *Status:* ERROR\n"+
-					"🔍 *Source Check:* 0/2 responded\n"+
-					"💡 *Saran:* TrustPositif gak respon dari kedua source. Coba lagi 1-2 menit lagi.",
-				domain)
+					"🔍 *Source Check:* 0/%d responded\n"+
+					"💡 *Saran:* Semua source gak respon. Coba lagi 1-2 menit lagi.",
+				domain, total)
 		}
 		if loadingMsg != nil {
 			h.bot.Edit(loadingMsg, msg, backToMonitor(), tele.ModeMarkdown)
@@ -460,14 +507,14 @@ func (h *Handler) handleMonitorInterval(c tele.Context) error {
 func (h *Handler) wizardMonitorInterval(c tele.Context, sess *Session) error {
 	d, err := time.ParseDuration(strings.TrimSpace(c.Text()))
 	if err != nil || d < 10*time.Second {
-		return c.Send(
+		return h.reply(c, 
 			"❌ Interval tidak valid. Minimal 10s\n_(contoh: 30s, 1m, 2m30s)_",
 			cancelMenu(), tele.ModeMarkdown)
 	}
 	h.sessions.Delete(c.Sender().ID)
 	h.rotSvc.SetInterval(d)
 	h.monScanner.SetInterval(d)
-	return c.Send(
+	return h.reply(c, 
 		fmt.Sprintf("✅ Interval cek diubah ke *%v*\n\n_Auto Rotator & Monitor Scanner sync sama interval ini._", d),
 		backToMonitor(), tele.ModeMarkdown)
 }

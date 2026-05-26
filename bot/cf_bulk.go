@@ -156,7 +156,7 @@ func (h *Handler) handleCFBulkApply(c tele.Context) error {
 func (h *Handler) wizardCFBulkURL(c tele.Context, sess *Session) error {
 	newURL := strings.TrimSpace(c.Text())
 	if newURL == "" {
-		return c.Send("❌ URL tidak boleh kosong. Coba lagi:", cancelMenu(), tele.ModeMarkdown)
+		return h.reply(c, "❌ URL tidak boleh kosong. Coba lagi:", cancelMenu(), tele.ModeMarkdown)
 	}
 	if !strings.HasPrefix(newURL, "http://") && !strings.HasPrefix(newURL, "https://") {
 		newURL = "https://" + newURL
@@ -173,7 +173,7 @@ func (h *Handler) wizardCFBulkURL(c tele.Context, sess *Session) error {
 		}
 	}
 	if len(picked) == 0 {
-		return c.Send("❌ Rule yang dipilih sudah tidak ada. Coba ulangi.", backToCF(), tele.ModeMarkdown)
+		return h.reply(c, "❌ Rule yang dipilih sudah tidak ada. Coba ulangi.", backToCF(), tele.ModeMarkdown)
 	}
 
 	loadingMsg, _ := h.bot.Send(c.Chat(),
@@ -229,7 +229,7 @@ func (h *Handler) wizardCFBulkURL(c tele.Context, sess *Session) error {
 		}
 		return nil
 	}
-	return c.Send(sb.String(), backToCF(), tele.ModeMarkdown)
+	return h.reply(c, sb.String(), backToCF(), tele.ModeMarkdown)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

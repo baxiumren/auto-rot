@@ -122,12 +122,43 @@ func (ms *MonitorScanner) Start() {
 
 func (ms *MonitorScanner) scanLoop() {
 	time.Sleep(3 * time.Second) // initial delay
+	iter := 0
 	for {
+		iter++
 		ms.mu.Lock()
 		interval := ms.interval
 		ms.mu.Unlock()
 
-		ms.scanOnce()
+		startTime := time.Now()
+
+		// Hitung dulu jumlah domain di monitor
+		all := ms.domains.GetAll()
+		totalDomains := 0
+		for _, doms := range all {
+			totalDomains += len(doms)
+		}
+
+		if totalDomains == 0 {
+			log.Printf("[MONITOR-SCAN] cycle #%d SKIP — gak ada domain di Monitor. Sleep %v...", iter, interval)
+		} else {
+			log.Printf("[MONITOR-SCAN] cycle #%d START — scan %d domain dalam %d label", iter, totalDomains, len(all))
+			ms.scanOnce()
+
+			// Snapshot status setelah scan
+			ms.mu.Lock()
+			blockedCount := len(ms.blocked)
+			ms.mu.Unlock()
+
+			elapsed := time.Since(startTime)
+			if blockedCount > 0 {
+				log.Printf("[MONITOR-SCAN] cycle #%d DONE in %v — %d blocked, %d safe. Sleep %v...",
+					iter, elapsed, blockedCount, totalDomains-blockedCount, interval)
+			} else {
+				log.Printf("[MONITOR-SCAN] cycle #%d DONE in %v — semua %d domain SAFE ✅. Sleep %v...",
+					iter, elapsed, totalDomains, interval)
+			}
+		}
+
 		time.Sleep(interval)
 	}
 }

@@ -48,6 +48,16 @@ func main() {
 	}
 	cf := cloudflare.New(cfEmail, cfKey)
 
+	// Optional API keys untuk checker (Source 2 & 3)
+	if cfg.TrustPositifKey != "" {
+		checker.SetAPIKey(cfg.TrustPositifKey)
+		log.Printf("✅ TrustPositif API key loaded (Source 2 premium tier)")
+	}
+	if cfg.NawalaCheckKey != "" {
+		checker.SetNawalaCheckKey(cfg.NawalaCheckKey)
+		log.Printf("✅ NawalaCheck API key loaded (Source 3 aktif — triple-source mode)")
+	}
+
 	// Bot
 	b, err := tele.NewBot(tele.Settings{
 		Token:  cfg.BotToken,

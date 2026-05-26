@@ -53,7 +53,7 @@ func (h *Handler) handleCFNewYes(c tele.Context) error {
 			h.bot.Edit(loadingMsg, errText, backToCF(), tele.ModeMarkdown)
 			return nil
 		}
-		return c.Send(errText, backToCF(), tele.ModeMarkdown)
+		return h.reply(c, errText, backToCF(), tele.ModeMarkdown)
 	}
 
 	// Save zone info
@@ -102,7 +102,7 @@ func (h *Handler) handleCFNewYes(c tele.Context) error {
 		h.bot.Edit(loadingMsg, text, mkup, tele.ModeMarkdown)
 		return nil
 	}
-	return c.Send(text, mkup, tele.ModeMarkdown)
+	return h.reply(c, text, mkup, tele.ModeMarkdown)
 }
 
 // handleCFNewPickType — user pilih V1 atau V2.
@@ -139,7 +139,7 @@ func (h *Handler) handleCFNewPickType(c tele.Context, ruleType string) error {
 func (h *Handler) wizardCFNewTargetURL(c tele.Context, sess *Session) error {
 	targetURL := strings.TrimSpace(c.Text())
 	if targetURL == "" {
-		return c.Send("❌ URL tidak boleh kosong, coba lagi:", cancelMenu(), tele.ModeMarkdown)
+		return h.reply(c, "❌ URL tidak boleh kosong, coba lagi:", cancelMenu(), tele.ModeMarkdown)
 	}
 	if !strings.HasPrefix(targetURL, "http://") && !strings.HasPrefix(targetURL, "https://") {
 		targetURL = "https://" + targetURL
@@ -177,7 +177,7 @@ func (h *Handler) wizardCFNewTargetURL(c tele.Context, sess *Session) error {
 			h.bot.Edit(loadingMsg, errText, backToCF(), tele.ModeMarkdown)
 			return nil
 		}
-		return c.Send(errText, backToCF(), tele.ModeMarkdown)
+		return h.reply(c, errText, backToCF(), tele.ModeMarkdown)
 	}
 
 	// Save ke store
@@ -234,5 +234,5 @@ func (h *Handler) wizardCFNewTargetURL(c tele.Context, sess *Session) error {
 		}
 		return nil
 	}
-	return c.Send(text, backToCF(), tele.ModeMarkdown)
+	return h.reply(c, text, backToCF(), tele.ModeMarkdown)
 }

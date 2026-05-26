@@ -11,12 +11,14 @@ import (
 )
 
 type Config struct {
-	BotToken      string
-	AllowedChatID int64
-	AdminIDs      map[int64]bool
-	CFEmail       string
-	CFAPIKey      string
-	CheckInterval time.Duration
+	BotToken          string
+	AllowedChatID     int64
+	AdminIDs          map[int64]bool
+	CFEmail           string
+	CFAPIKey          string
+	CheckInterval     time.Duration
+	TrustPositifKey   string // optional: API key untuk trustpositif.id/api/v1
+	NawalaCheckKey    string // optional: API key untuk api.nawalacheck.com (Source 3)
 }
 
 func Load() (*Config, error) {
@@ -46,12 +48,14 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		BotToken:      token,
-		AllowedChatID: chatID,
-		AdminIDs:      adminIDs,
-		CFEmail:       os.Getenv("CF_EMAIL"),
-		CFAPIKey:      os.Getenv("CF_API_KEY"),
-		CheckInterval: interval,
+		BotToken:        token,
+		AllowedChatID:   chatID,
+		AdminIDs:        adminIDs,
+		CFEmail:         os.Getenv("CF_EMAIL"),
+		CFAPIKey:        os.Getenv("CF_API_KEY"),
+		CheckInterval:   interval,
+		TrustPositifKey: os.Getenv("TRUSTPOSITIF_API_KEY"),
+		NawalaCheckKey:  os.Getenv("NAWALACHECK_API_KEY"),
 	}, nil
 }
 

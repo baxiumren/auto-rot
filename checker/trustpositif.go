@@ -7,14 +7,10 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/PuerkitoBio/goquery"
 )
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -22,15 +18,27 @@ import (
 const (
 	StickyFile = "data/sticky_blocked.json"
 	APITimeout = 15 * time.Second
-	TotalSources = 2 // ada 2 source: API v1 + HTML scrape lama
 
-	// Source 1: Official API v1 (paling cepat & reliable)
-	// Documented: https://trust-positif.gitbook.io/docs
+	// ─── Source 1: Rest_server (backend public web form — UNLIMITED) ───────
+	RestServerEndpoint = "https://trustpositif.komdigi.go.id/Rest_server/getrecordsname_home"
+
+	// ─── Source 2: API v1 (developer API — 100/day freemium) ──────────────
 	APIv1Endpoint = "https://trustpositif.id/api/v1/check"
 
-	// Source 2: Legacy HTML scrape (backup kalau API v1 down)
-	HTMLEndpoint = "https://trustpositif.komdigi.go.id/Rest_server/getrecordsname_home"
+	// ─── Source 3: NawalaCheck.com (paid API — opsional, butuh X-API-Key) ─
+	NawalaCheckEndpoint = "https://api.nawalacheck.com/api/"
+
+	// Cooldown saat API hit 429 / quota habis — skip selama ini
+	quotaResetCooldown = 1 * time.Hour
 )
+
+// MaxSources return total sumber yg aktif (2 atau 3 tergantung NawalaCheck key).
+func MaxSources() int {
+	if getNawalaCheckKey() != "" {
+		return 3
+	}
+	return 2
+}
 
 // ─── HTTP Client ──────────────────────────────────────────────────────────────
 
@@ -43,7 +51,7 @@ var httpClient = &http.Client{
 	},
 }
 
-// Optional API key untuk premium tier
+// Optional API key untuk premium tier TrustPositif API v1
 var (
 	apiKey   string
 	apiKeyMu sync.RWMutex
@@ -59,6 +67,69 @@ func getAPIKey() string {
 	apiKeyMu.RLock()
 	defer apiKeyMu.RUnlock()
 	return apiKey
+}
+
+// Optional API key untuk NawalaCheck.com (Source 3 — paid service)
+var (
+	nawalaCheckKey   string
+	nawalaCheckKeyMu sync.RWMutex
+)
+
+func SetNawalaCheckKey(key string) {
+	nawalaCheckKeyMu.Lock()
+	nawalaCheckKey = strings.TrimSpace(key)
+	nawalaCheckKeyMu.Unlock()
+	if key != "" {
+		log.Printf("[NAWALA] NawalaCheck API key di-set (Source 3 aktif)")
+	}
+}
+
+func getNawalaCheckKey() string {
+	nawalaCheckKeyMu.RLock()
+	defer nawalaCheckKeyMu.RUnlock()
+	return nawalaCheckKey
+}
+
+// NawalaCheck quota cooldown (kalau 403 Limit habis)
+var (
+	nawalaCheckCooldown time.Time
+	nawalaCheckMu       sync.RWMutex
+)
+
+func setNawalaCheckCooldown() {
+	nawalaCheckMu.Lock()
+	nawalaCheckCooldown = time.Now().Add(quotaResetCooldown)
+	nawalaCheckMu.Unlock()
+	log.Printf("[NAWALA] NawalaCheck cooldown sampai %s (quota habis)", nawalaCheckCooldown.Format("15:04:05"))
+}
+
+func isNawalaCheckInCooldown() bool {
+	nawalaCheckMu.RLock()
+	defer nawalaCheckMu.RUnlock()
+	return time.Now().Before(nawalaCheckCooldown)
+}
+
+// ─── API v1 Quota Management ─────────────────────────────────────────────────
+// Saat API v1 hit 429, set `apiV1Cooldown` ke time.Now()+1jam.
+// Selama cooldown aktif, skip API v1 call (cuma pakai Rest_server source).
+// Ini bikin quota 100/hari LANGGENG karena cuma dipakai pas Rest_server fail.
+
+var (
+	apiV1Cooldown time.Time
+	cooldownMu    sync.RWMutex
+)
+
+func setAPIv1Cooldown() {
+	cooldownMu.Lock()
+	apiV1Cooldown = time.Now().Add(quotaResetCooldown)
+	cooldownMu.Unlock()
+	log.Printf("[NAWALA] API v1 cooldown sampai %s (quota habis)", apiV1Cooldown.Format("15:04:05"))
+}
+
+func isAPIv1InCooldown() bool {
+	cooldownMu.RLock()
+	defer cooldownMu.RUnlock()
+	return time.Now().Before(apiV1Cooldown)
 }
 
 // ─── Checker = stateful sticky+force store + dual-source caller ──────────────
@@ -250,60 +321,96 @@ func (c *Checker) GetForceList() map[string]string {
 	return out
 }
 
-// ─── Core Check Methods (DUAL SOURCE) ────────────────────────────────────────
+// ─── Core Check Methods (DUAL SOURCE - Smart Quota) ──────────────────────────
 //
 // Tiap check ke 2 source secara PARALEL:
-//   - Source 1: API v1 (trustpositif.id/api/v1/check) — official, cepat
-//   - Source 2: HTML scrape (trustpositif.komdigi.go.id) — legacy backup
+//   - Source 1: Rest_server (UNLIMITED — backend public web form)
+//   - Source 2: API v1 (100/day limit, di-skip kalau cooldown aktif)
 //
-// Logic:
-//   - ANY source say BLOCKED  → BLOCKED (fail-safe: lebih baik swap salah daripada lewat block beneran)
-//   - ALL source error        → ERROR
-//   - Otherwise (all SAFE)    → SAFE
+// Quota management:
+//   - Kalau API v1 hit 429, set cooldown 1 jam.
+//   - Selama cooldown, API v1 di-skip (cuma Rest_server jalan).
+//   - Source Check displays "1/2" or "2/2" tergantung berapa source aktif.
 
 type sourceResult struct {
-	name    string // "API" atau "HTML"
-	status  string // "BLOCKED" | "SAFE" | "ERROR"
+	name    string
+	status  string
 	err     error
 	elapsed time.Duration
+	skipped bool // true kalau di-skip karena quota cooldown
 }
 
-// checkBothSources jalanin paralel ke 2 source, return status + count.
-// Return:
-//   - status: "BLOCKED" | "SAFE" | "ERROR"
-//   - blockedSources: berapa source confirm blocked (0/1/2)
-//   - totalSources: berapa source yang sukses respon (gak ERROR)
-func (c *Checker) checkBothSources(domain string) (status string, blockedSources, totalSources int) {
+func (c *Checker) checkAllSources(domain string) (status string, blockedSources, totalSources int) {
+	// Tentuin source aktif (2 atau 3 tergantung NawalaCheck key)
+	hasNawalaCheck := getNawalaCheckKey() != ""
+	numSources := 2
+	if hasNawalaCheck {
+		numSources = 3
+	}
+
 	var wg sync.WaitGroup
-	results := make([]sourceResult, 2)
+	results := make([]sourceResult, numSources)
+	wg.Add(numSources)
 
-	wg.Add(2)
-
-	// Source 1: API v1
+	// Source 1: Rest_server (selalu jalan, unlimited)
 	go func() {
 		defer wg.Done()
 		start := time.Now()
-		results[0] = sourceResult{name: "API", elapsed: 0}
-		s, err := checkViaAPIv1(domain)
+		results[0] = sourceResult{name: "Rest"}
+		s, err := checkViaRestServer(domain)
 		results[0].status = s
 		results[0].err = err
 		results[0].elapsed = time.Since(start)
 	}()
 
-	// Source 2: HTML scrape
+	// Source 2: API v1 (cek cooldown dulu)
 	go func() {
 		defer wg.Done()
 		start := time.Now()
-		results[1] = sourceResult{name: "HTML", elapsed: 0}
-		s, err := checkViaHTMLScrape(domain)
+		results[1] = sourceResult{name: "APIv1"}
+		if isAPIv1InCooldown() {
+			results[1].skipped = true
+			results[1].err = fmt.Errorf("quota cooldown active")
+			return
+		}
+		s, err := checkViaAPIv1(domain)
 		results[1].status = s
 		results[1].err = err
 		results[1].elapsed = time.Since(start)
+		if err != nil && (strings.Contains(err.Error(), "429") || strings.Contains(err.Error(), "Daily limit")) {
+			setAPIv1Cooldown()
+		}
 	}()
+
+	// Source 3: NawalaCheck (opsional — kalau API key ada)
+	if hasNawalaCheck {
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			results[2] = sourceResult{name: "NwCheck"}
+			if isNawalaCheckInCooldown() {
+				results[2].skipped = true
+				results[2].err = fmt.Errorf("quota cooldown active")
+				return
+			}
+			s, err := checkViaNawalaCheck(domain)
+			results[2].status = s
+			results[2].err = err
+			results[2].elapsed = time.Since(start)
+			// Detect 403 (limit habis / plan inactive) → cooldown
+			if err != nil && strings.Contains(err.Error(), "403") {
+				setNawalaCheckCooldown()
+			}
+		}()
+	}
 
 	wg.Wait()
 
 	for _, r := range results {
+		if r.skipped {
+			log.Printf("[NAWALA] %s %s → SKIP (cooldown)", r.name, domain)
+			continue
+		}
 		if r.err != nil {
 			log.Printf("[NAWALA] %s %s → ERROR in %v: %v", r.name, domain, r.elapsed, r.err)
 			continue
@@ -324,8 +431,12 @@ func (c *Checker) checkBothSources(domain string) (status string, blockedSources
 	return "SAFE", 0, totalSources
 }
 
-// CheckFast: untuk rotator (auto-check). 1 round ke 2 source paralel.
-// Cepat (~1.5s), efisien, redundan.
+// Backward-compat alias
+func (c *Checker) checkBothSources(domain string) (status string, blockedSources, totalSources int) {
+	return c.checkAllSources(domain)
+}
+
+// CheckFast: untuk rotator (auto-check).
 func (c *Checker) CheckFast(domain string) string {
 	domain = Clean(domain)
 	if c.IsForceBlocked(domain) {
@@ -342,26 +453,90 @@ func (c *Checker) CheckFast(domain string) string {
 	return status
 }
 
-// CheckManual: untuk user manual cek. Return status + count "X/2 sources confirm blocked".
-//   - X = blockedSources (berapa source confirm blocked)
-//   - total = TotalSources (2)
+// CheckManual: untuk user manual cek. Return status + "X/Y sources confirm".
+// Y = 2 atau 3 tergantung NawalaCheck key ada/enggak.
 func (c *Checker) CheckManual(domain string) (status string, blockedCount, totalRounds int) {
 	domain = Clean(domain)
+	maxSrc := MaxSources()
 	if c.IsForceBlocked(domain) {
-		return "BLOCKED", TotalSources, TotalSources
+		return "BLOCKED", maxSrc, maxSrc
 	}
 	if blocked, _ := c.IsSticky(domain); blocked {
-		return "BLOCKED", TotalSources, TotalSources
+		return "BLOCKED", maxSrc, maxSrc
 	}
 
-	status, blocked, _ := c.checkBothSources(domain)
+	status, blocked, _ := c.checkAllSources(domain)
 	if status == "BLOCKED" {
 		c.AddSticky(domain)
 	}
-	return status, blocked, TotalSources
+	return status, blocked, maxSrc
 }
 
-// ─── SOURCE 1: API v1 (trustpositif.id) ──────────────────────────────────────
+// ─── SOURCE 1: Rest_server (UNLIMITED) ───────────────────────────────────────
+//
+// Endpoint backend public web form. POST application/x-www-form-urlencoded,
+// body "name=domain.com". Response JSON.
+//
+// Format response:
+// {"values":[{"Domain":"...","Status":"Ada"}],"response":1}
+//   Status="Ada" → BLOCKED, else → SAFE
+
+type restServerResponse struct {
+	Values []struct {
+		Domain string `json:"Domain"`
+		Status string `json:"Status"`
+	} `json:"values"`
+	Response int `json:"response"`
+}
+
+func checkViaRestServer(domain string) (string, error) {
+	body := bytes.NewBufferString("name=" + domain)
+	req, err := http.NewRequest("POST", RestServerEndpoint, body)
+	if err != nil {
+		return "", fmt.Errorf("req: %w", err)
+	}
+
+	// CRITICAL: User-Agent harus curl/8.5.0 (Mozilla kena 403)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "curl/8.5.0")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Origin", "https://trustpositif.komdigi.go.id")
+	req.Header.Set("Referer", "https://trustpositif.komdigi.go.id/")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read: %w", err)
+	}
+
+	var parsed restServerResponse
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return "", fmt.Errorf("parse: %w", err)
+	}
+
+	for _, item := range parsed.Values {
+		if strings.EqualFold(Clean(item.Domain), domain) {
+			s := strings.ToLower(strings.TrimSpace(item.Status))
+			if strings.Contains(s, "ada") && !strings.Contains(s, "tidak") {
+				return "BLOCKED", nil
+			}
+			return "SAFE", nil
+		}
+	}
+	// Domain gak ada di values = gak terdaftar = SAFE
+	return "SAFE", nil
+}
+
+// ─── SOURCE 2: API v1 (100/day freemium) ─────────────────────────────────────
 
 type apiV1Result struct {
 	Domain  string `json:"Domain"`
@@ -373,6 +548,7 @@ type apiV1Response struct {
 	Results []apiV1Result `json:"results"`
 	Count   int           `json:"count"`
 	Message string        `json:"message,omitempty"`
+	Code    int           `json:"code,omitempty"`
 }
 
 func checkViaAPIv1(domain string) (string, error) {
@@ -399,7 +575,16 @@ func checkViaAPIv1(domain string) (string, error) {
 		return "", fmt.Errorf("read: %w", err)
 	}
 
+	// Handle 429 dan limit exceeded specifically
+	if resp.StatusCode == 429 {
+		return "", fmt.Errorf("HTTP 429 (Daily limit exceeded)")
+	}
 	if resp.StatusCode != 200 {
+		// Coba parse error message
+		var errResp apiV1Response
+		if json.Unmarshal(body, &errResp) == nil && errResp.Message != "" {
+			return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, errResp.Message)
+		}
 		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
@@ -419,110 +604,72 @@ func checkViaAPIv1(domain string) (string, error) {
 			return "SAFE", nil
 		}
 	}
-	// Domain gak ada di response = gak terdaftar = SAFE
 	return "SAFE", nil
 }
 
-// ─── SOURCE 2: HTML Scrape Legacy (trustpositif.komdigi.go.id) ───────────────
+// ─── SOURCE 3: NawalaCheck.com (opsional — butuh X-API-Key) ──────────────────
+//
+// Endpoint: GET https://api.nawalacheck.com/api/?domain=example.com
+// Header:   X-API-Key: tp_xxx
+// Response: {"example.com": {"blocked": true|false}}
+// Errors:   401 (invalid key), 403 (IP/limit), 500
+// Docs:     https://nawalacheck.com (Domain Checker API)
 
-func checkViaHTMLScrape(domain string) (string, error) {
-	const baseURL = "https://trustpositif.komdigi.go.id/"
-
-	// Step 1: GET halaman home untuk dapat CSRF token
-	req, err := http.NewRequest("GET", baseURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("req1: %w", err)
+func checkViaNawalaCheck(domain string) (string, error) {
+	key := getNawalaCheckKey()
+	if key == "" {
+		return "", fmt.Errorf("no API key configured")
 	}
-	setHTMLHeaders(req)
+
+	endpoint := NawalaCheckEndpoint + "?domain=" + domain
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("req: %w", err)
+	}
+	req.Header.Set("X-API-Key", key)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "BongBot/1.0")
+
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("http1: %w", err)
+		return "", fmt.Errorf("http: %w", err)
 	}
 	defer resp.Body.Close()
-	bodyBytes, _ := io.ReadAll(resp.Body)
 
-	csrf := extractCSRFToken(string(bodyBytes))
-	if csrf == "" {
-		return "", fmt.Errorf("csrf token gak ketemu")
-	}
-
-	// Step 2: GET halaman result dengan CSRF
-	checkURL := fmt.Sprintf(
-		"https://trustpositif.komdigi.go.id/welcome?csrf_token=%s&recaptcha_token=&domains=%s",
-		url.QueryEscape(csrf), url.QueryEscape(domain),
-	)
-	req2, _ := http.NewRequest("GET", checkURL, nil)
-	setHTMLHeaders(req2)
-	req2.Header.Set("Referer", baseURL)
-
-	resp2, err := httpClient.Do(req2)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("http2: %w", err)
+		return "", fmt.Errorf("read: %w", err)
 	}
-	defer resp2.Body.Close()
-	resultBody, _ := io.ReadAll(resp2.Body)
 
-	return parseHTMLResult(string(resultBody), domain)
-}
-
-func setHTMLHeaders(req *http.Request) {
-	req.Header.Set("User-Agent", "curl/8.5.0") // CRITICAL — Mozilla bakal kena 403
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7")
-}
-
-func extractCSRFToken(html string) string {
-	if m := regexp.MustCompile(`csrf_token=([a-fA-F0-9]+)`).FindStringSubmatch(html); len(m) > 1 {
-		return m[1]
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, truncateLog(string(body), 100))
 	}
-	if m := regexp.MustCompile(`csrf_token["'\s:=]+([a-fA-F0-9]+)`).FindStringSubmatch(html); len(m) > 1 {
-		return m[1]
-	}
-	return ""
-}
 
-func parseHTMLResult(html, domain string) (string, error) {
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
-	if err != nil {
-		return "", fmt.Errorf("parse html: %w", err)
+	// Parse response: {"domain.com": {"blocked": true|false}}
+	var parsed map[string]struct {
+		Blocked bool `json:"blocked"`
 	}
-	var found string
-	doc.Find("table tr").Each(func(_ int, s *goquery.Selection) {
-		tds := s.Find("td")
-		if tds.Length() >= 2 {
-			col1 := strings.TrimSpace(tds.Eq(0).Text())
-			col2 := strings.TrimSpace(tds.Eq(1).Text())
-			if normalizeHTML(col1) == normalizeHTML(domain) {
-				found = col2
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "", fmt.Errorf("parse: %w", err)
+	}
+
+	for d, info := range parsed {
+		if strings.EqualFold(Clean(d), domain) {
+			if info.Blocked {
+				return "BLOCKED", nil
 			}
-		}
-	})
-	if found == "" {
-		text := strings.ToLower(doc.Text())
-		if strings.Contains(text, "tidak ada") {
 			return "SAFE", nil
 		}
-		if strings.Contains(text, "ada") {
-			return "BLOCKED", nil
-		}
-		return "", fmt.Errorf("status gak ketemu di HTML")
 	}
-	s := strings.ToLower(strings.TrimSpace(found))
-	if strings.Contains(s, "tidak ada") {
-		return "SAFE", nil
-	}
-	if strings.Contains(s, "ada") {
-		return "BLOCKED", nil
-	}
-	return "", fmt.Errorf("status unknown: %s", found)
+	// Domain gak ada di response → asumsikan SAFE (gak terdaftar blocklist)
+	return "SAFE", nil
 }
 
-func normalizeHTML(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	s = strings.TrimPrefix(s, "http://")
-	s = strings.TrimPrefix(s, "https://")
-	s = strings.TrimPrefix(s, "www.")
-	return strings.TrimSuffix(s, "/")
+func truncateLog(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
 }
 
 // ─── Backward-compat package functions ───────────────────────────────────────

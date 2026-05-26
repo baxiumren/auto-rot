@@ -46,6 +46,8 @@ func (h *Handler) handleSettings(c tele.Context) error {
 // ─── Set Email Only ───────────────────────────────────────────────────────────
 
 func (h *Handler) handleSettingsSetEmail(c tele.Context) error {
+	// Defensive: clear any lingering session sebelum mulai wizard sensitif
+	h.sessions.Delete(c.Sender().ID)
 	h.sessions.Set(c.Sender().ID, &Session{
 		Step: StepSettingsEmail,
 		Data: map[string]string{},
@@ -65,13 +67,13 @@ func (h *Handler) handleSettingsSetEmail(c tele.Context) error {
 func (h *Handler) wizardSettingsEmail(c tele.Context, sess *Session) error {
 	email := strings.TrimSpace(c.Text())
 	if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
-		return c.Send("⚠️ Format email tidak valid. Coba lagi:", cancelMenu())
+		return h.reply(c, "⚠️ Format email tidak valid. Coba lagi:", cancelMenu())
 	}
 	h.creds.SetEmail(email)
 	h.applyCredsToCFClient()
 	h.sessions.Delete(c.Sender().ID)
 
-	return c.Send(
+	return h.reply(c, 
 		fmt.Sprintf("✅ CF Email berhasil di-set:\n`%s`", escapeMD(email)),
 		backToSettings(), tele.ModeMarkdown,
 	)
@@ -80,6 +82,8 @@ func (h *Handler) wizardSettingsEmail(c tele.Context, sess *Session) error {
 // ─── Set API Key Only ─────────────────────────────────────────────────────────
 
 func (h *Handler) handleSettingsSetKey(c tele.Context) error {
+	// Defensive: clear any lingering session sebelum wizard sensitif
+	h.sessions.Delete(c.Sender().ID)
 	h.sessions.Set(c.Sender().ID, &Session{
 		Step: StepSettingsKey,
 		Data: map[string]string{},
@@ -101,7 +105,7 @@ func (h *Handler) handleSettingsSetKey(c tele.Context) error {
 func (h *Handler) wizardSettingsKey(c tele.Context, sess *Session) error {
 	key := strings.TrimSpace(c.Text())
 	if len(key) < 20 {
-		return c.Send("⚠️ API Key terlalu pendek. Pastikan kamu copy Global API Key yang benar:", cancelMenu())
+		return h.reply(c, "⚠️ API Key terlalu pendek. Pastikan kamu copy Global API Key yang benar:", cancelMenu())
 	}
 	h.creds.SetAPIKey(key)
 	h.applyCredsToCFClient()
@@ -110,7 +114,7 @@ func (h *Handler) wizardSettingsKey(c tele.Context, sess *Session) error {
 	// Hapus pesan API key dari chat (security)
 	_ = h.bot.Delete(c.Message())
 
-	return c.Send(
+	return h.reply(c, 
 		fmt.Sprintf("✅ CF API Key berhasil di-set:\n`%s`\n\n_Pesan API key kamu sudah dihapus dari chat._",
 			escapeMD(store.MaskAPIKey(key))),
 		backToSettings(), tele.ModeMarkdown,
@@ -120,6 +124,8 @@ func (h *Handler) wizardSettingsKey(c tele.Context, sess *Session) error {
 // ─── Set Both (Email + API Key) ───────────────────────────────────────────────
 
 func (h *Handler) handleSettingsSetBoth(c tele.Context) error {
+	// Defensive: clear any lingering session sebelum wizard sensitif
+	h.sessions.Delete(c.Sender().ID)
 	h.sessions.Set(c.Sender().ID, &Session{
 		Step: StepSettingsBothEmail,
 		Data: map[string]string{},
@@ -137,13 +143,13 @@ func (h *Handler) handleSettingsSetBoth(c tele.Context) error {
 func (h *Handler) wizardSettingsBothEmail(c tele.Context, sess *Session) error {
 	email := strings.TrimSpace(c.Text())
 	if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
-		return c.Send("⚠️ Format email tidak valid. Coba lagi:", cancelMenu())
+		return h.reply(c, "⚠️ Format email tidak valid. Coba lagi:", cancelMenu())
 	}
 	sess.Data["email"] = email
 	sess.Step = StepSettingsBothKey
 	h.sessions.Set(c.Sender().ID, sess)
 
-	return c.Send(
+	return h.reply(c, 
 		fmt.Sprintf(
 			"✅ Email tersimpan: `%s`\n\n"+
 				"━━━━━━━━━━━━━━━━━━\n"+
@@ -162,7 +168,7 @@ func (h *Handler) wizardSettingsBothEmail(c tele.Context, sess *Session) error {
 func (h *Handler) wizardSettingsBothKey(c tele.Context, sess *Session) error {
 	key := strings.TrimSpace(c.Text())
 	if len(key) < 20 {
-		return c.Send("⚠️ API Key terlalu pendek. Coba lagi:", cancelMenu())
+		return h.reply(c, "⚠️ API Key terlalu pendek. Coba lagi:", cancelMenu())
 	}
 	email := sess.Data["email"]
 	h.creds.Set(email, key)
@@ -172,7 +178,7 @@ func (h *Handler) wizardSettingsBothKey(c tele.Context, sess *Session) error {
 	// Hapus pesan API key dari chat
 	_ = h.bot.Delete(c.Message())
 
-	return c.Send(
+	return h.reply(c, 
 		fmt.Sprintf(
 			"✅ *Credentials tersimpan!*\n\n📧 Email: `%s`\n🔑 API Key: `%s`\n\n"+
 				"_Pesan API key kamu sudah dihapus._\n\nKlik *Test Koneksi* buat verifikasi.",

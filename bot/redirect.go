@@ -52,7 +52,7 @@ func (h *Handler) wizardCFAddLabel(c tele.Context, sess *Session) error {
 	label := strings.TrimSpace(c.Text())
 	log.Printf("[CF_ADD] label step user=%d label=%q", c.Sender().ID, label)
 	if label == "" {
-		return c.Send("❌ Label tidak boleh kosong:", cancelMenu(), tele.ModeMarkdown)
+		return h.reply(c, "❌ Label tidak boleh kosong:", cancelMenu(), tele.ModeMarkdown)
 	}
 	sess.Data["label"] = label
 	sess.Step = StepCFAddDomain
@@ -88,14 +88,14 @@ func (h *Handler) wizardCFAddDomain(c tele.Context, sess *Session) error {
 
 	if domain == "" {
 		log.Printf("[CF_ADD] domain kosong setelah CleanDomain")
-		return c.Send("❌ Nama domain tidak valid, coba lagi:", cancelMenu(), tele.ModeMarkdown)
+		return h.reply(c, "❌ Nama domain tidak valid, coba lagi:", cancelMenu(), tele.ModeMarkdown)
 	}
 
 	// Defensive: re-cek credential di sini juga (kalau dihapus pas wizard jalan)
 	if !h.cf.HasCredentials() {
 		log.Printf("[CF_ADD] credentials missing")
 		h.sessions.Delete(c.Sender().ID)
-		return c.Send(
+		return h.reply(c, 
 			"⚠️ *CF Credentials belum di-set*\n\nSet email & API key dulu via menu *🔧 Settings*.",
 			backToCF(), tele.ModeMarkdown,
 		)
@@ -149,7 +149,7 @@ func (h *Handler) wizardCFAddDomain(c tele.Context, sess *Session) error {
 			}
 			return nil
 		}
-		return c.Send(offerText, mkup, tele.ModeMarkdown)
+		return h.reply(c, offerText, mkup, tele.ModeMarkdown)
 	}
 	sess.Data["zone_id"] = zoneID
 
@@ -209,7 +209,7 @@ func (h *Handler) wizardCFAddDomain(c tele.Context, sess *Session) error {
 			h.bot.Edit(loadingMsg, text, m, tele.ModeMarkdown)
 			return nil
 		}
-		return c.Send(text, m, tele.ModeMarkdown)
+		return h.reply(c, text, m, tele.ModeMarkdown)
 
 	default:
 		// Tidak ada rule sama sekali
@@ -226,7 +226,7 @@ func (h *Handler) wizardCFAddDomain(c tele.Context, sess *Session) error {
 			h.bot.Edit(loadingMsg, errText, backToCF(), tele.ModeMarkdown)
 			return nil
 		}
-		return c.Send(errText, backToCF(), tele.ModeMarkdown)
+		return h.reply(c, errText, backToCF(), tele.ModeMarkdown)
 	}
 }
 
@@ -270,7 +270,7 @@ func (h *Handler) applyDiscoveredRedirect(c tele.Context, sess *Session, zoneID 
 		h.bot.Edit(loadingMsg, text, m, tele.ModeMarkdown)
 		return nil
 	}
-	return c.Send(text, m, tele.ModeMarkdown)
+	return h.reply(c, text, m, tele.ModeMarkdown)
 }
 
 // applyDiscoveredPage — handle setelah dapet list page rules.
@@ -307,7 +307,7 @@ func (h *Handler) applyDiscoveredPage(c tele.Context, sess *Session, zoneID stri
 		h.bot.Edit(loadingMsg, text, m, tele.ModeMarkdown)
 		return nil
 	}
-	return c.Send(text, m, tele.ModeMarkdown)
+	return h.reply(c, text, m, tele.ModeMarkdown)
 }
 
 // handleCFAddPickTypeV1/V2 — user pilih tipe saat ada v1+v2 dua-duanya.
@@ -416,7 +416,7 @@ func (h *Handler) saveCFRule(c tele.Context, sess *Session, targetMsg *tele.Mess
 		}
 		return nil
 	}
-	return c.Send(text, backToCF(), tele.ModeMarkdown)
+	return h.reply(c, text, backToCF(), tele.ModeMarkdown)
 }
 
 // ─── List CF Rules ────────────────────────────────────────────────────────────
@@ -595,13 +595,13 @@ func (h *Handler) handleCFChangeSelect(c tele.Context) error {
 func (h *Handler) wizardCFChangeURL(c tele.Context, sess *Session) error {
 	newURL := strings.TrimSpace(c.Text())
 	if newURL == "" {
-		return c.Send("❌ URL tidak boleh kosong", backToCF(), tele.ModeMarkdown)
+		return h.reply(c, "❌ URL tidak boleh kosong", backToCF(), tele.ModeMarkdown)
 	}
 	h.sessions.Delete(c.Sender().ID)
 
 	rule, ok := h.cfrules.GetByID(sess.Data["rule_id"])
 	if !ok {
-		return c.Send("❌ Rule tidak ditemukan", backToCF(), tele.ModeMarkdown)
+		return h.reply(c, "❌ Rule tidak ditemukan", backToCF(), tele.ModeMarkdown)
 	}
 
 	loadingMsg, _ := h.bot.Send(c.Chat(), "⏳ Mengupdate CF rule...", tele.ModeMarkdown)
@@ -616,7 +616,7 @@ func (h *Handler) wizardCFChangeURL(c tele.Context, sess *Session) error {
 			h.bot.Edit(loadingMsg, errText, backToCF(), tele.ModeMarkdown)
 			return nil
 		}
-		return c.Send(errText, backToCF(), tele.ModeMarkdown)
+		return h.reply(c, errText, backToCF(), tele.ModeMarkdown)
 	}
 	h.history.LogSwap("manual", rule.Label, rule.Domain, prevURL, newURL, true, "")
 
@@ -626,7 +626,7 @@ func (h *Handler) wizardCFChangeURL(c tele.Context, sess *Session) error {
 		h.bot.Edit(loadingMsg, successText, backToCF(), tele.ModeMarkdown)
 		return nil
 	}
-	return c.Send(successText, backToCF(), tele.ModeMarkdown)
+	return h.reply(c, successText, backToCF(), tele.ModeMarkdown)
 }
 
 // ─── Delete CF Rule ───────────────────────────────────────────────────────────
