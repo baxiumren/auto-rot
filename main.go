@@ -81,6 +81,12 @@ func main() {
 	h := bot.New(b, cfg, domains, cfrules, rotators, creds, cf, rotSvc, monScanner, history)
 	h.Register()
 
+	// Backfill: rule lama yg field Domain-nya kosong → fetch zone name dari CF.
+	// Jalan async biar gak block startup. Skip kalau credentials belum di-set.
+	if cf.HasCredentials() {
+		go backfillCFRuleDomain(cf, cfrules)
+	}
+
 	// Start services
 	rotSvc.Start()
 	monScanner.Start()
@@ -94,6 +100,38 @@ func main() {
 type telegramNotifier struct {
 	b      *tele.Bot
 	chatID int64
+}
+
+// backfillCFRuleDomain — one-time scan: untuk setiap CF rule yang field Domain-nya
+// kosong tapi ZoneID-nya ada, fetch zone name dari CF API → update store.
+// Best-effort: error logged tapi gak fatal, biar service tetap jalan.
+func backfillCFRuleDomain(cf *cloudflare.Client, cfrules *store.CFRuleStore) {
+	time.Sleep(2 * time.Second) // tunggu bot ready
+	rules := cfrules.GetAll()
+	patched := 0
+	skipped := 0
+	for _, r := range rules {
+		if r.Domain != "" {
+			continue
+		}
+		if r.ZoneID == "" {
+			skipped++
+			continue
+		}
+		name, err := cf.GetZoneName(r.ZoneID)
+		if err != nil {
+			log.Printf("[BACKFILL] rule=%s zone=%s gagal fetch: %v", r.Label, r.ZoneID, err)
+			skipped++
+			continue
+		}
+		if cfrules.UpdateDomain(r.ID, name) {
+			log.Printf("[BACKFILL] rule=%s → Domain=%s", r.Label, name)
+			patched++
+		}
+	}
+	if patched > 0 {
+		log.Printf("✅ Backfill done: %d rule di-update, %d skipped", patched, skipped)
+	}
 }
 
 func (n *telegramNotifier) Notify(msg string) {

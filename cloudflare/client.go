@@ -261,6 +261,29 @@ func (c *Client) GetZoneID(domainName string) (string, error) {
 	return resp.Result[0].ID, nil
 }
 
+// GetZoneName reverse lookup: ZoneID → nama domain (untuk backfill rule lama
+// yang field Domain-nya kosong).
+func (c *Client) GetZoneName(zoneID string) (string, error) {
+	url := fmt.Sprintf("%s/zones/%s", baseURL, zoneID)
+	data, err := c.do(http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("gagal fetch zone: %w", err)
+	}
+	var resp struct {
+		Result struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return "", err
+	}
+	if resp.Result.Name == "" {
+		return "", fmt.Errorf("zone name kosong untuk ZoneID: %s", zoneID)
+	}
+	return resp.Result.Name, nil
+}
+
 // ListRedirectRules fetch semua redirect rules (v2) di zone.
 func (c *Client) ListRedirectRules(zoneID string) ([]DiscoveredRule, error) {
 	// 1. List rulesets, filter phase "http_request_dynamic_redirect"

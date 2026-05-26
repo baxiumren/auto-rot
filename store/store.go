@@ -212,6 +212,21 @@ func (s *CFRuleStore) Add(r CFRule) {
 	go s.save()
 }
 
+// UpdateDomain backfill field Domain untuk rule lama yang Domain-nya kosong.
+// Return true kalau ke-update, false kalau rule tidak ditemukan.
+func (s *CFRuleStore) UpdateDomain(id, domain string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, r := range s.data {
+		if r.ID == id {
+			s.data[i].Domain = domain
+			go s.save()
+			return true
+		}
+	}
+	return false
+}
+
 func (s *CFRuleStore) Delete(id string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
