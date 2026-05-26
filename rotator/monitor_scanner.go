@@ -3,6 +3,7 @@ package rotator
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -26,9 +27,9 @@ import (
 // SEBELUM dia jadi target di CF rule.
 
 const (
-	MonitorAlertWindow  = 2 * time.Minute  // berapa lama alert mode
-	MonitorCooldown     = 10 * time.Minute // diam sebentar setelah alert window
-	MonitorSpamInterval = 25 * time.Second // jarak antar alert spam
+	// MonitorSpamInterval: jarak antar alert untuk domain BLOCKED.
+	// Spam continuous (gak ada cooldown) sampai user hapus dari Monitor.
+	MonitorSpamInterval = 25 * time.Second
 
 	// Concurrency tuning — confirmed via browser test:
 	//   - Parallel 5+ → Kominfo balikin HTTP 404 anti-spam (~25% requests gagal)
@@ -37,18 +38,22 @@ const (
 
 	// Delay antar request per worker (anti rate-limit Kominfo)
 	PerCheckDelay = 200 * time.Millisecond
+
+	// ChunkSize: jumlah domain maksimum yang di-cek per cycle/tick.
+	// Kalau total domain > ChunkSize → auto rotating batch:
+	//   tick 1 cek domain 1-100, tick 2 cek 101-200, dst, lalu ulang.
+	// Sticky/force-blocked di-skip dari pool chunkable (udah dikenal blocked,
+	// gak perlu cek API lagi — spam loop terus jalan via ms.blocked).
+	ChunkSize = 100
 )
 
 type blockCycle struct {
 	domain        string
 	label         string
-	firstDetected time.Time
-	lastAlertSent time.Time
-	cycleStart    time.Time
-	alertCount    int
-	inCooldown    bool
-	cycleNumber   int
-	swapped       bool // udah kena auto-swap di cycle ini?
+	firstDetected time.Time // kapan pertama kali terdeteksi blocked
+	lastAlertSent time.Time // kapan alert terakhir kekirim
+	alertCount    int       // berapa kali alert udah dikirim
+	swapped       bool      // udah kena auto-swap?
 }
 
 // MonitorScanner adalah background task yang scan semua domain di Monitor list.
@@ -65,6 +70,11 @@ type MonitorScanner struct {
 	blocked map[string]*blockCycle
 
 	interval time.Duration
+
+	// Rotating batch state (chunking untuk total > ChunkSize)
+	cursor       int // index awal chunk berikutnya di sorted active list
+	lastChunkNum int // chunk yang baru aja kelar (1-based, untuk display)
+	lastChunkOf  int // total chunk di cycle terakhir (1-based)
 }
 
 // cfUpdater adalah interface kecil — biar gampang inject mock di test.
@@ -148,26 +158,99 @@ func (ms *MonitorScanner) scanLoop() {
 		if totalDomains == 0 {
 			log.Printf("[MONITOR-SCAN] cycle #%d SKIP — gak ada domain di Monitor. Sleep %v...", iter, interval)
 		} else {
-			log.Printf("[MONITOR-SCAN] cycle #%d START — scan %d domain dalam %d label", iter, totalDomains, len(all))
+			log.Printf("[MONITOR-SCAN] cycle #%d START — total %d domain dalam %d label", iter, totalDomains, len(all))
 			ms.scanOnce()
 
 			// Snapshot status setelah scan
 			ms.mu.Lock()
 			blockedCount := len(ms.blocked)
+			chunkNum, chunkOf := ms.lastChunkNum, ms.lastChunkOf
 			ms.mu.Unlock()
 
 			elapsed := time.Since(startTime)
+			chunkInfo := ""
+			if chunkOf > 1 {
+				chunkInfo = fmt.Sprintf(" [chunk %d/%d]", chunkNum, chunkOf)
+			}
 			if blockedCount > 0 {
-				log.Printf("[MONITOR-SCAN] cycle #%d DONE in %v — %d blocked, %d safe. Sleep %v...",
-					iter, elapsed, blockedCount, totalDomains-blockedCount, interval)
+				log.Printf("[MONITOR-SCAN] cycle #%d DONE%s in %v — %d blocked, %d safe. Sleep %v...",
+					iter, chunkInfo, elapsed, blockedCount, totalDomains-blockedCount, interval)
 			} else {
-				log.Printf("[MONITOR-SCAN] cycle #%d DONE in %v — semua %d domain SAFE ✅. Sleep %v...",
-					iter, elapsed, totalDomains, interval)
+				log.Printf("[MONITOR-SCAN] cycle #%d DONE%s in %v — semua %d domain SAFE ✅. Sleep %v...",
+					iter, chunkInfo, elapsed, totalDomains, interval)
 			}
 		}
 
 		time.Sleep(interval)
 	}
+}
+
+type scanEntry struct {
+	domain string
+	label  string
+}
+
+// pickChunk: pilih chunk dari sorted active list, advance cursor untuk tick berikutnya.
+// Return: chunk yang harus di-cek di tick ini, chunkNum (1-based), totalChunks.
+// Sticky+force-blocked HARUS udah ke-filter sebelum dipanggil (mereka skip dari API call).
+func (ms *MonitorScanner) pickChunk(active []scanEntry) ([]scanEntry, int, int) {
+	if len(active) == 0 {
+		ms.mu.Lock()
+		ms.cursor = 0
+		ms.lastChunkNum, ms.lastChunkOf = 0, 0
+		ms.mu.Unlock()
+		return nil, 0, 0
+	}
+
+	// Sort deterministic biar cursor konsisten antar tick (kalau domain ada
+	// yang ditambah/dihapus di tengah, cursor masih reasonably stable).
+	sort.Slice(active, func(i, j int) bool { return active[i].domain < active[j].domain })
+
+	// Kalau total ≤ ChunkSize → full scan tiap tick (no rotation)
+	if len(active) <= ChunkSize {
+		ms.mu.Lock()
+		ms.cursor = 0
+		ms.lastChunkNum, ms.lastChunkOf = 1, 1
+		ms.mu.Unlock()
+		return active, 1, 1
+	}
+
+	// Rotating batch
+	ms.mu.Lock()
+	start := ms.cursor
+	if start >= len(active) || start < 0 {
+		start = 0
+	}
+	end := start + ChunkSize
+	var chunk []scanEntry
+	if end > len(active) {
+		chunk = append(chunk, active[start:]...)
+		chunk = append(chunk, active[:end-len(active)]...)
+	} else {
+		chunk = active[start:end]
+	}
+	totalChunks := (len(active) + ChunkSize - 1) / ChunkSize
+	chunkNum := (start / ChunkSize) + 1
+	if chunkNum > totalChunks {
+		chunkNum = totalChunks
+	}
+	// Advance cursor untuk tick berikutnya
+	next := end
+	if next >= len(active) {
+		next = 0
+	}
+	ms.cursor = next
+	ms.lastChunkNum, ms.lastChunkOf = chunkNum, totalChunks
+	ms.mu.Unlock()
+	return chunk, chunkNum, totalChunks
+}
+
+// GetChunkInfo: untuk display di Status menu.
+// Return (chunkNum, totalChunks, cursor, chunkSize).
+func (ms *MonitorScanner) GetChunkInfo() (int, int, int, int) {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+	return ms.lastChunkNum, ms.lastChunkOf, ms.cursor, ChunkSize
 }
 
 func (ms *MonitorScanner) scanOnce() {
@@ -177,11 +260,7 @@ func (ms *MonitorScanner) scanOnce() {
 	}
 
 	// Build a unique list of (domain, label)
-	type entry struct {
-		domain string
-		label  string
-	}
-	var entries []entry
+	var entries []scanEntry
 	seen := make(map[string]bool)
 	for label, doms := range all {
 		for _, d := range doms {
@@ -189,7 +268,7 @@ func (ms *MonitorScanner) scanOnce() {
 				continue
 			}
 			seen[d] = true
-			entries = append(entries, entry{domain: d, label: label})
+			entries = append(entries, scanEntry{domain: d, label: label})
 		}
 	}
 
@@ -215,26 +294,70 @@ func (ms *MonitorScanner) scanOnce() {
 		log.Printf("[MONITOR-SCAN] orphan cleanup: %d sticky, %d force cleared", sCleared, fCleared)
 	}
 
+	// Filter sticky+force-blocked dari pool chunkable.
+	// Domain udah dikenal blocked → gak perlu hit API lagi, spam loop tetap jalan
+	// via ms.blocked map. Hemat kuota dan kasih ruang chunk buat domain SAFE.
+	var active []scanEntry
+	skippedSticky := 0
+	for _, e := range entries {
+		if blocked, _ := ms.chk.IsSticky(e.domain); blocked {
+			skippedSticky++
+			// Pastikan ms.blocked tracks domain ini (kalau belum, register sekarang)
+			ms.ensureBlockedTracked(e.domain, e.label)
+			continue
+		}
+		if ms.chk.IsForceBlocked(e.domain) {
+			skippedSticky++
+			ms.ensureBlockedTracked(e.domain, e.label)
+			continue
+		}
+		active = append(active, e)
+	}
+
+	// Pick chunk untuk tick ini (rotating kalau >ChunkSize)
+	chunk, chunkNum, totalChunks := ms.pickChunk(active)
+	if totalChunks > 1 {
+		log.Printf("[MONITOR-SCAN] chunk %d/%d — cek %d/%d domain aktif (sticky-blocked skip: %d)",
+			chunkNum, totalChunks, len(chunk), len(active), skippedSticky)
+	} else if skippedSticky > 0 {
+		log.Printf("[MONITOR-SCAN] full scan — %d domain aktif (sticky-blocked skip: %d)",
+			len(chunk), skippedSticky)
+	}
+
 	// Scan paralel dengan semaphore + delay antar request per worker.
-	// Strategy yang udah confirmed work via browser test:
-	//   - Max 3 concurrent (gak overload server Kominfo)
-	//   - Delay 200ms antar request per worker (anti rate-limit)
-	//   - Plus retry on 404 di checker level
 	sem := make(chan struct{}, MonitorMaxConcurrent)
 	var wg sync.WaitGroup
-	for _, e := range entries {
+	for _, e := range chunk {
 		wg.Add(1)
-		go func(e entry) {
+		go func(e scanEntry) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			ms.checkOne(e.domain, e.label)
-			// Sleep AFTER check (sebelum release semaphore slot) — bikin worker
-			// natural rate-limit dirinya sendiri. Worker berikutnya tunggu.
 			time.Sleep(PerCheckDelay)
 		}(e)
 	}
 	wg.Wait()
+}
+
+// ensureBlockedTracked — kalau domain udah sticky/force-blocked tapi belum
+// ada di ms.blocked (misal: sticky di-load dari file saat startup), register
+// supaya spam loop tetap jalanin alert.
+func (ms *MonitorScanner) ensureBlockedTracked(domain, label string) {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+	if _, exists := ms.blocked[domain]; exists {
+		return
+	}
+	now := time.Now()
+	ms.blocked[domain] = &blockCycle{
+		domain:        domain,
+		label:         label,
+		firstDetected: now,
+		lastAlertSent: now, // delay first alert sampai SpamInterval — gak spam mendadak saat restart
+		alertCount:    0,
+		swapped:       false,
+	}
 }
 
 func (ms *MonitorScanner) checkOne(domain, label string) {
@@ -259,10 +382,7 @@ func (ms *MonitorScanner) checkOne(domain, label string) {
 				label:         label,
 				firstDetected: time.Now(),
 				lastAlertSent: time.Now(),
-				cycleStart:    time.Now(),
 				alertCount:    1,
-				inCooldown:    false,
-				cycleNumber:   1,
 				swapped:       false,
 			}
 			ms.mu.Lock()
@@ -313,35 +433,9 @@ func (ms *MonitorScanner) spamLoop() {
 }
 
 // evaluateSpam dijalankan dengan ms.mu locked.
+// Spam CONTINUOUS tiap MonitorSpamInterval, gak ada cooldown.
+// Berhenti cuma kalau domain di-hapus dari Monitor (akan auto-cleared di scanOnce).
 func (ms *MonitorScanner) evaluateSpam(cycle *blockCycle, now time.Time) {
-	elapsed := now.Sub(cycle.cycleStart)
-
-	if cycle.inCooldown {
-		// Cek apakah cooldown selesai → restart cycle
-		if elapsed >= MonitorCooldown {
-			cycle.inCooldown = false
-			cycle.cycleStart = now
-			cycle.alertCount = 1
-			cycle.cycleNumber++
-			cycle.lastAlertSent = now
-			cycle.swapped = false // reset, kalau masih blocked nanti swap lagi
-			// Kirim cycle restart message
-			go ms.sendBlockAlert(cycle, false)
-			// Re-trigger auto-swap kalau emang masih kena
-			go ms.triggerAutoSwap(cycle.domain, cycle.label)
-		}
-		return
-	}
-
-	// Active alert mode
-	if elapsed > MonitorAlertWindow {
-		// Pindah ke cooldown
-		cycle.inCooldown = true
-		cycle.cycleStart = now
-		return
-	}
-
-	// Cek waktu untuk spam berikutnya
 	if now.Sub(cycle.lastAlertSent) >= MonitorSpamInterval {
 		cycle.alertCount++
 		cycle.lastAlertSent = now
@@ -353,21 +447,31 @@ func (ms *MonitorScanner) evaluateSpam(cycle *blockCycle, now time.Time) {
 func (ms *MonitorScanner) sendBlockAlert(cycle *blockCycle, firstTime bool) {
 	var prefix, modeText string
 
-	switch {
-	case firstTime:
+	if firstTime {
 		prefix = "🚨 *DOMAIN KENA NAWALA!*"
 		modeText = "🆕 Baru pertama kali terdeteksi"
-	case cycle.cycleNumber > 1 && cycle.alertCount == 1:
-		prefix = fmt.Sprintf("🔔 *MASIH BLOCKED!* [Cycle #%d restart]", cycle.cycleNumber)
-		modeText = "⏰ Cycle baru setelah cooldown"
-	default:
+	} else {
 		prefix = fmt.Sprintf("🛑 *MASIH BLOCKED!* [Alert #%d]", cycle.alertCount)
-		modeText = "🔄 Spam mode aktif"
+		modeText = "🔄 Spam continuous — gak akan berhenti sampai kamu hapus domain"
 	}
 
 	swapNote := ""
 	if cycle.swapped {
-		swapNote = "\n✅ _CF Rule udah ke-swap. Domain ini tetap dipantau._"
+		swapNote = "\n✅ _CF Rule udah ke-swap ke domain backup. Domain ini tetap dipantau._"
+	}
+
+	// Hitung berapa lama domain udah blocked
+	elapsed := time.Since(cycle.firstDetected)
+	var durasi string
+	switch {
+	case elapsed < time.Minute:
+		durasi = fmt.Sprintf("%d detik", int(elapsed.Seconds()))
+	case elapsed < time.Hour:
+		durasi = fmt.Sprintf("%d menit", int(elapsed.Minutes()))
+	case elapsed < 24*time.Hour:
+		durasi = fmt.Sprintf("%.1f jam", elapsed.Hours())
+	default:
+		durasi = fmt.Sprintf("%.1f hari", elapsed.Hours()/24)
 	}
 
 	msg := fmt.Sprintf(
@@ -375,10 +479,13 @@ func (ms *MonitorScanner) sendBlockAlert(cycle *blockCycle, firstTime bool) {
 			"📛 Label: `%s`\n"+
 			"🌐 Domain: `%s`\n"+
 			"📅 Pertama detect: %s\n"+
+			"⏱ Sudah blocked: %s\n"+
 			"%s%s\n\n"+
-			"_Spam akan terus sampai kamu hapus domain ini dari Monitor._",
+			"_💡 Spam akan terus sampai kamu hapus domain ini dari Monitor._\n"+
+			"_Kominfo udah gak di-cek lagi — sticky cache aktif (hemat API)._",
 		prefix, cycle.label, cycle.domain,
 		cycle.firstDetected.Format("02/01 15:04:05"),
+		durasi,
 		modeText, swapNote,
 	)
 	ms.notify.Notify(msg)

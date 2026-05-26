@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,6 +76,7 @@ func (h *Handler) handleMonitor(c tele.Context) error {
 // ─── Add Domain ───────────────────────────────────────────────────────────────
 
 func (h *Handler) handleMonitorAdd(c tele.Context) error {
+	h.cancelPriorPrompt(c, StepMonitorAddDomain)
 	prompt := "📝 *Tambah Domain ke Monitor*\n\n" +
 		"_Langkah 1 dari 2_\n\n" +
 		"Ketik nama domain yang mau dipantau:\n\n" +
@@ -106,12 +108,12 @@ func (h *Handler) wizardMonitorAddDomain(c tele.Context, sess *Session) error {
 	// Tampilkan existing labels sebagai pilihan + input manual
 	labels := h.domains.Labels()
 	prompt := fmt.Sprintf(
-		"✅ Domain: `%s`\n\n"+
+		"%s ✅ Domain: `%s`\n\n"+
 			"📂 *Langkah 2 dari 2 — Pilih Label/Kategori*\n\n"+
 			"Label = kelompok domain serupa. Kalau salah satu domain di label ini kena nawala, bot bakal swap ke domain lain di *label yang sama*.\n\n"+
 			"💡 *Contoh label:* KWAI, MONEYSITE, STOCK-MS, PROMO, dll.\n\n"+
 			"Ketik nama label atau klik tombol di bawah:",
-		domain)
+		userTag(c.Sender()), domain)
 	if len(labels) > 0 {
 		prompt += "\n\n*Label yang sudah pernah dipakai:*"
 	}
@@ -132,7 +134,12 @@ func (h *Handler) wizardMonitorAddDomain(c tele.Context, sess *Session) error {
 	m.Inline(rows...)
 
 	// Send pesan baru → simpan sebagai PromptMsg baru biar step berikutnya bisa edit kalau perlu
-	newMsg, _ := h.bot.Send(c.Chat(), prompt, m, tele.ModeMarkdown)
+	// Pakai ReplyTo biar di group chat kelihatan prompt ini reply ke pesan domain user.
+	newMsg, _ := h.bot.Send(c.Chat(), prompt, &tele.SendOptions{
+		ReplyTo:     c.Message(),
+		ParseMode:   tele.ModeMarkdown,
+		ReplyMarkup: m,
+	})
 	if newMsg != nil {
 		sess.PromptMsg = newMsg
 	}
@@ -265,6 +272,7 @@ func (h *Handler) doAddDomain(c tele.Context, sess *Session, label string) error
 // ─── Remove Domain ────────────────────────────────────────────────────────────
 
 func (h *Handler) handleMonitorRemove(c tele.Context) error {
+	h.cancelPriorPrompt(c, StepMonitorRemove)
 	prompt := "🗑 *Hapus Domain dari Monitor*\n\n" +
 		"Ketik nama domain yang mau dihapus dari list pemantauan:\n\n" +
 		"_Contoh:_ `example.com`\n\n" +
@@ -310,6 +318,7 @@ func (h *Handler) wizardMonitorRemove(c tele.Context, sess *Session) error {
 // ─── Check Domain ─────────────────────────────────────────────────────────────
 
 func (h *Handler) handleMonitorCheck(c tele.Context) error {
+	h.cancelPriorPrompt(c, StepMonitorCheck)
 	prompt := "🔍 *Cek Status Domain Manual*\n\n" +
 		"Bot akan cek apakah domain ini kena nawala (terblokir Kominfo) atau aman.\n\n" +
 		"Ketik domain yang mau dicek:\n\n" +
@@ -514,59 +523,276 @@ func (h *Handler) runManualCheck(c tele.Context, domain string, mode checker.Sou
 	return nil
 }
 
-// ─── List Domain ─────────────────────────────────────────────────────────────
+// ─── List Domain (with pagination + per-label filter) ───────────────────────
 
+const (
+	DomainsPerPage    = 100 // max domain per halaman list
+	CategoriesPerPage = 6   // max button kategori per halaman (3 rows × 2 cols)
+)
+
+// handleMonitorList: entry — tampilkan kategori picker
 func (h *Handler) handleMonitorList(c tele.Context) error {
+	return h.renderListMenu(c, 0)
+}
+
+// handleMonitorListMenuPage: navigasi page kategori picker
+func (h *Handler) handleMonitorListMenuPage(c tele.Context) error {
+	page, _ := strconv.Atoi(extractParam(c))
+	return h.renderListMenu(c, page)
+}
+
+// renderListMenu: tampilin kategori picker dengan pagination
+func (h *Handler) renderListMenu(c tele.Context, page int) error {
 	all := h.domains.GetAll()
 	if len(all) == 0 {
 		return c.Edit(
 			"📭 *Belum ada domain terdaftar*\n\n"+
-				"Tambah domain pakai *➕ Add Domain* di menu Monitor.\n\n"+
-				"_Bot butuh minimal 2 domain di satu label biar Auto Rotator ada pilihan saat swap._",
+				"Tambah domain pakai *➕ Add Domain* di menu Monitor.",
 			backToMonitor(), tele.ModeMarkdown)
 	}
 
-	var sb strings.Builder
-	sb.WriteString("📋 *Domain List per Kategori*\n═══════════════════════════\n\n")
-
+	// Sort labels alphabetically
 	labels := make([]string, 0, len(all))
 	for l := range all {
 		labels = append(labels, l)
 	}
 	sort.Strings(labels)
 
-	total := 0
-	for _, label := range labels {
-		domains := all[label]
-		sb.WriteString(fmt.Sprintf("📂 *[%s]* — %d domain\n", label, len(domains)))
-		for _, d := range domains {
-			sb.WriteString(fmt.Sprintf("  • `%s`\n", d))
-		}
-		sb.WriteString("\n")
-		total += len(domains)
+	totalDomains := 0
+	for _, l := range labels {
+		totalDomains += len(all[l])
 	}
-	sb.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━\n📊 *Total:* %d domain dalam %d kategori\n\n", total, len(labels)))
-	sb.WriteString("💡 _Label ini bisa dipakai sebagai *pool* di Auto Rotator._")
+
+	totalCategories := len(labels)
+	totalPages := (totalCategories + CategoriesPerPage - 1) / CategoriesPerPage
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	if page < 0 {
+		page = 0
+	}
+	if page >= totalPages {
+		page = totalPages - 1
+	}
+
+	start := page * CategoriesPerPage
+	end := start + CategoriesPerPage
+	if end > totalCategories {
+		end = totalCategories
+	}
+
+	var sb strings.Builder
+	sb.WriteString("📋 *Daftar Domain Monitor*\n═══════════════════════════\n\n")
+	sb.WriteString(fmt.Sprintf("📊 *Total:* %d domain dalam %d kategori\n", totalDomains, totalCategories))
+	sb.WriteString("\n💡 _Klik kategori untuk filter, atau Semua Domain untuk liat semua._")
+
+	// Build markup
+	m := &tele.ReplyMarkup{}
+	var rows []tele.Row
+
+	// Row 1: SEMUA DOMAIN button
+	rows = append(rows, m.Row(
+		m.Data(fmt.Sprintf("📋 SEMUA DOMAIN (%d)", totalDomains), cbMonitorListAll, "0"),
+	))
+
+	// Rows 2-4: kategori buttons (2 cols × max 3 rows)
+	pageLabels := labels[start:end]
+	for i := 0; i < len(pageLabels); i += 2 {
+		var row tele.Row
+		for j := 0; j < 2 && i+j < len(pageLabels); j++ {
+			lbl := pageLabels[i+j]
+			count := len(all[lbl])
+			btnText := fmt.Sprintf("🔍 %s (%d)", lbl, count)
+			row = append(row, m.Data(btnText, cbMonitorListLabel, lbl+"|0"))
+		}
+		rows = append(rows, row)
+	}
+
+	// Row 5: pagination (kalau total > 1 page)
+	if totalPages > 1 {
+		var pagRow tele.Row
+		if page > 0 {
+			pagRow = append(pagRow, m.Data("‹", cbMonitorListMenuPage, strconv.Itoa(page-1)))
+		}
+		pagRow = append(pagRow, m.Data(fmt.Sprintf("📄 %d/%d", page+1, totalPages), cbNoop))
+		if page < totalPages-1 {
+			pagRow = append(pagRow, m.Data("›", cbMonitorListMenuPage, strconv.Itoa(page+1)))
+		}
+		rows = append(rows, pagRow)
+	}
+
+	// Row 6: back
+	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbMonitor)))
+	m.Inline(rows...)
+
+	return c.Edit(sb.String(), m, tele.ModeMarkdown)
+}
+
+// handleMonitorListAll: tampilin semua domain paginated
+func (h *Handler) handleMonitorListAll(c tele.Context) error {
+	page, _ := strconv.Atoi(extractParam(c))
+	return h.renderDomainList(c, "", page)
+}
+
+// handleMonitorListLabel: tampilin domain per label paginated
+// Param format: "label|page"
+func (h *Handler) handleMonitorListLabel(c tele.Context) error {
+	param := extractParam(c)
+	parts := strings.SplitN(param, "|", 2)
+	label := parts[0]
+	page := 0
+	if len(parts) > 1 {
+		page, _ = strconv.Atoi(parts[1])
+	}
+	return h.renderDomainList(c, label, page)
+}
+
+// renderDomainList: tampilin list domain paginated.
+// filterLabel="" → semua. filterLabel="MONEYSITE" → cuma kategori itu.
+func (h *Handler) renderDomainList(c tele.Context, filterLabel string, page int) error {
+	all := h.domains.GetAll()
+
+	// Build flat list, sorted by label then domain
+	type entry struct{ label, domain string }
+	var items []entry
+	labels := make([]string, 0, len(all))
+	for l := range all {
+		labels = append(labels, l)
+	}
+	sort.Strings(labels)
+
+	for _, l := range labels {
+		if filterLabel != "" && l != filterLabel {
+			continue
+		}
+		for _, d := range all[l] {
+			items = append(items, entry{l, d})
+		}
+	}
+
+	if len(items) == 0 {
+		return c.Edit(
+			fmt.Sprintf("📭 Kategori *[%s]* kosong.", filterLabel),
+			backToListMenu(), tele.ModeMarkdown)
+	}
+
+	totalPages := (len(items) + DomainsPerPage - 1) / DomainsPerPage
+	if page < 0 {
+		page = 0
+	}
+	if page >= totalPages {
+		page = totalPages - 1
+	}
+
+	start := page * DomainsPerPage
+	end := start + DomainsPerPage
+	if end > len(items) {
+		end = len(items)
+	}
+
+	title := "📋 *Daftar Semua Domain*"
+	if filterLabel != "" {
+		title = fmt.Sprintf("📋 *Daftar Domain [%s]*", filterLabel)
+	}
+
+	var sb strings.Builder
+	sb.WriteString(title)
+	if totalPages > 1 {
+		sb.WriteString(fmt.Sprintf(" — Hal %d/%d", page+1, totalPages))
+	}
+	sb.WriteString("\n")
+	sb.WriteString("═══════════════════════════\n\n")
+
+	for i := start; i < end; i++ {
+		sb.WriteString(fmt.Sprintf("%d. `[%s]` %s\n", i+1, items[i].label, items[i].domain))
+	}
+
+	sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n"))
+	if filterLabel != "" {
+		sb.WriteString(fmt.Sprintf("📊 *%d* domain di kategori *[%s]*", len(items), filterLabel))
+	} else {
+		sb.WriteString(fmt.Sprintf("📊 *Total:* %d domain", len(items)))
+	}
+
+	// Build markup
+	m := &tele.ReplyMarkup{}
+	var rows []tele.Row
+
+	// Pagination (kalau total > 1 page)
+	if totalPages > 1 {
+		var pagRow tele.Row
+		cbName := cbMonitorListAll
+		if filterLabel != "" {
+			cbName = cbMonitorListLabel
+		}
+		prevData := strconv.Itoa(page - 1)
+		nextData := strconv.Itoa(page + 1)
+		if filterLabel != "" {
+			prevData = filterLabel + "|" + strconv.Itoa(page-1)
+			nextData = filterLabel + "|" + strconv.Itoa(page+1)
+		}
+		if page > 0 {
+			pagRow = append(pagRow, m.Data("‹", cbName, prevData))
+		}
+		pagRow = append(pagRow, m.Data(fmt.Sprintf("📄 %d/%d", page+1, totalPages), cbNoop))
+		if page < totalPages-1 {
+			pagRow = append(pagRow, m.Data("›", cbName, nextData))
+		}
+		rows = append(rows, pagRow)
+	}
+
+	// Back ke kategori picker
+	rows = append(rows, m.Row(m.Data("🔙 Pilih Kategori", cbMonitorList)))
+	m.Inline(rows...)
 
 	text := sb.String()
+	// Telegram limit 4096 chars
 	if len(text) > 3800 {
-		text = text[:3800] + "\n\n_(dipotong — terlalu panjang)_"
+		text = text[:3800] + "\n\n_(dipotong — coba per kategori)_"
 	}
-	return c.Edit(text, backToMonitor(), tele.ModeMarkdown)
+	return c.Edit(text, m, tele.ModeMarkdown)
+}
+
+// backToListMenu: helper untuk balik ke kategori picker
+func backToListMenu() *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	m.Inline(m.Row(m.Data("🔙 Pilih Kategori", cbMonitorList)))
+	return m
 }
 
 // ─── Status Blocked ───────────────────────────────────────────────────────────
 
 func (h *Handler) handleMonitorStatus(c tele.Context) error {
 	blocked := h.monScanner.GetBlockedSnapshot()
+	totalDomains := h.domains.TotalCount()
+	chunkNum, chunkOf, _, chunkSize := h.monScanner.GetChunkInfo()
+	interval := h.monScanner.GetInterval()
+
+	// Build scanner info header
+	var scanInfo strings.Builder
+	scanInfo.WriteString(fmt.Sprintf("🔍 *Scanner Info*\n"))
+	scanInfo.WriteString(fmt.Sprintf("• Domain di Monitor: *%d*\n", totalDomains))
+	scanInfo.WriteString(fmt.Sprintf("• Interval tick: *%v*\n", interval))
+	if chunkOf > 1 {
+		fullCycle := time.Duration(chunkOf) * interval
+		fullCycleStr := fmt.Sprintf("%.1f menit", fullCycle.Minutes())
+		scanInfo.WriteString(fmt.Sprintf("• Mode: 🔄 *Rotating Batch* (chunk %d/%d, %d domain/chunk)\n", chunkNum, chunkOf, chunkSize))
+		scanInfo.WriteString(fmt.Sprintf("• Siklus penuh: %s\n", fullCycleStr))
+	} else {
+		scanInfo.WriteString(fmt.Sprintf("• Mode: 🟢 *Full Scan* (semua domain tiap tick)\n"))
+	}
+	scanInfo.WriteString("\n━━━━━━━━━━━━━━━━━━\n\n")
+
 	if len(blocked) == 0 {
 		return c.Edit(
-			"✅ *Semua aman!*\n\n"+
+			scanInfo.String()+
+				"✅ *Semua aman!*\n\n"+
 				"Saat ini gak ada domain yang terdeteksi kena nawala.\n\n"+
 				"_Bot bakal otomatis update list ini kalau ada domain yang kena blokir._",
 			backToMonitor(), tele.ModeMarkdown)
 	}
 	var sb strings.Builder
+	sb.WriteString(scanInfo.String())
 	sb.WriteString("🚨 *Domain yang Sedang Terblokir Kominfo*\n═══════════════════════════\n\n")
 	for domain, since := range blocked {
 		sb.WriteString(fmt.Sprintf("🔴 `%s`\n   📅 Terdeteksi sejak: %s\n\n", domain, since.Format("02/01 15:04")))
@@ -578,19 +804,70 @@ func (h *Handler) handleMonitorStatus(c tele.Context) error {
 // ─── Set Interval ─────────────────────────────────────────────────────────────
 
 func (h *Handler) handleMonitorInterval(c tele.Context) error {
+	h.cancelPriorPrompt(c, StepMonitorInterval)
 	current := h.rotSvc.GetInterval()
+	domainCount := h.domains.TotalCount()
+
+	// Rotating batch math: chunk = 100 per tick, kalau total > 100 auto-split
+	const chunkSize = 100
+	totalChunks := 1
+	if domainCount > chunkSize {
+		totalChunks = (domainCount + chunkSize - 1) / chunkSize
+	}
+
+	// Estimasi 1 chunk: 100 domain × 1.2s / 3 worker ≈ 40 detik (aman dalam 45s tick)
+	chunkLen := domainCount
+	if chunkLen > chunkSize {
+		chunkLen = chunkSize
+	}
+	estChunkSec := float64(chunkLen) * 1.2 / 3.0
+	estChunkStr := fmt.Sprintf("%.0f detik", estChunkSec)
+
+	// Full cycle time = totalChunks × interval
+	fullCycle := time.Duration(totalChunks) * current
+	fullCycleStr := fullCycle.String()
+	if fullCycle >= time.Minute {
+		fullCycleStr = fmt.Sprintf("%.1f menit", fullCycle.Minutes())
+	}
+
+	modeText := "🟢 *Mode: Full Scan* — semua domain di-cek tiap tick"
+	if totalChunks > 1 {
+		modeText = fmt.Sprintf(
+			"🔄 *Mode: Rotating Batch* — auto-split %d chunk (100 domain/chunk)\n"+
+				"_Tick 1 cek 1-100, tick 2 cek 101-%d, dst → siklus penuh %s._",
+			totalChunks, domainCount, fullCycleStr,
+		)
+	}
+
 	prompt := fmt.Sprintf(
 		"⏱ *Set Interval Cek Otomatis*\n\n"+
-			"Interval = seberapa sering bot cek domain ke TrustPositif (situs nawala Kominfo).\n\n"+
-			"⏲ *Interval saat ini:* `%v`\n\n"+
-			"Ketik interval baru — *minimal 10 detik*:\n\n"+
+			"Interval = jarak antar tick scan ke Kominfo.\n\n"+
+			"━━━━━━━━━━━━━━━━━━\n"+
+			"📊 *Stats Bot Kamu:*\n"+
+			"• Domain di Monitor: *%d*\n"+
+			"• Interval saat ini: *%v*\n"+
+			"• Chunk per tick: max *%d* domain (~%s)\n"+
+			"• Total chunk: *%d*\n"+
+			"• Siklus penuh (semua domain ke-cek): *%s*\n\n"+
+			"%s\n\n"+
+			"━━━━━━━━━━━━━━━━━━\n"+
+			"📐 *Cara kerja Rotating Batch:*\n"+
+			"Bot bagi domain jadi chunk 100. Tiap tick cek 1 chunk aja → 0 risk rate-limit walau punya 1000+ domain.\n\n"+
+			"*Trade-off:* makin banyak domain → makin lama tiap domain ke-recheck (tapi Kominfo lead 4-24 jam dari ISP, masih aman).\n\n"+
+			"*Contoh dengan interval 45 detik:*\n"+
+			"• 100 domain → re-check tiap *45 detik*\n"+
+			"• 200 domain → re-check tiap *1.5 menit*\n"+
+			"• 500 domain → re-check tiap *3.75 menit*\n"+
+			"• 1000 domain → re-check tiap *7.5 menit*\n\n"+
+			"💡 *Rekomendasi:* `45s` (default) — udah optimal untuk semua skala.\n\n"+
+			"━━━━━━━━━━━━━━━━━━\n"+
 			"*Format yang diterima:*\n"+
-			"• `30s` → 30 detik\n"+
+			"• `30s` → 30 detik (min 10s)\n"+
 			"• `1m` → 1 menit\n"+
-			"• `2m30s` → 2 menit 30 detik\n"+
-			"• `5m` → 5 menit\n\n"+
-			"💡 *Rekomendasi:* `45s` cukup gesit, gak bikin CF rate limit.",
-		current,
+			"• `2m30s` → 2 menit 30 detik\n\n"+
+			"_💾 Domain yang BLOCKED auto-cached (sticky) — di-skip dari chunk biar slot ke-pakai untuk domain SAFE._\n\n"+
+			"Ketik interval baru:",
+		domainCount, current, chunkSize, estChunkStr, totalChunks, fullCycleStr, modeText,
 	)
 	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
 	if msg == nil {

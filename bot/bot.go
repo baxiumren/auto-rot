@@ -205,6 +205,16 @@ func (h *Handler) handleCallback(c tele.Context) error {
 	case cbMonitorCheckNawala:
 		return h.handleMonitorCheckPickSource(c, checker.SourceNawalaCheck)
 
+	// List Domain pagination
+	case cbMonitorListMenuPage:
+		return h.handleMonitorListMenuPage(c)
+	case cbMonitorListAll:
+		return h.handleMonitorListAll(c)
+	case cbMonitorListLabel:
+		return h.handleMonitorListLabel(c)
+	case cbNoop:
+		return c.Respond() // page indicator — gak ngapa-ngapain
+
 	// CF Redirect
 	case cbCF:
 		return h.handleCF(c)

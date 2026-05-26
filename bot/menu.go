@@ -21,6 +21,12 @@ const (
 	cbMonitorCheckKominfo  = "monitor_check_kominfo"   // manual check via Kominfo komdigi.go.id
 	cbMonitorCheckTP       = "monitor_check_tp"        // manual check via trustpositif.id
 	cbMonitorCheckNawala   = "monitor_check_nawala"    // manual check via NawalaCheck
+
+	// Pagination list domain
+	cbMonitorListMenuPage = "monitor_list_pg"    // page kategori picker (param=pageIdx)
+	cbMonitorListAll      = "monitor_list_all"   // semua domain paginated (param=pageIdx)
+	cbMonitorListLabel    = "monitor_list_label" // per-label paginated (param=label|pageIdx)
+	cbNoop                = "noop"               // non-functional button (page indicator)
 	cbMonitorForce       = "monitor_force"       // open force-block menu
 	cbMonitorForceAdd    = "monitor_force_add"   // add force-block (wizard)
 	cbMonitorForceDel    = "monitor_force_del"   // remove force-block (param=domain)

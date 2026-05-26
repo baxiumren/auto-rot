@@ -61,3 +61,40 @@ func (h *Handler) reply(c tele.Context, text string, opts ...interface{}) error 
 
 	return c.Send(final, sendOpts)
 }
+
+// cancelPriorPrompt — kalau user punya session aktif yang beda dari step baru,
+// edit prompt message lama jadi "❌ Dibatalkan (mulai aksi baru)" biar gak nyangkut
+// nyasar di group chat. Dipanggil di setiap entry-point handler sebelum set session baru.
+func (h *Handler) cancelPriorPrompt(c tele.Context, newStep Step) {
+	sess, ok := h.sessions.Get(c.Sender().ID)
+	if !ok || sess == nil {
+		return
+	}
+	if sess.Step == newStep {
+		return // sama, biarin
+	}
+	if sess.PromptMsg == nil {
+		return
+	}
+	// Best-effort edit; abaikan error (mungkin message udah ke-edit / di-delete).
+	h.bot.Edit(sess.PromptMsg,
+		"❌ _Wizard sebelumnya dibatalkan — kamu mulai aksi baru._",
+		tele.ModeMarkdown)
+}
+
+// promptUser — kirim wizard prompt baru sebagai pesan di chat dengan user-tag + ReplyTo.
+// Dipakai di tengah wizard (Step 2+) supaya di group chat user tau prompt ini untuk dia.
+// Return message yang baru di-send (buat di-simpan ke sess.PromptMsg).
+func (h *Handler) promptUser(c tele.Context, text string, markup *tele.ReplyMarkup) *tele.Message {
+	final := userTag(c.Sender()) + " " + text
+	sendOpts := &tele.SendOptions{
+		ReplyTo:     c.Message(),
+		ParseMode:   tele.ModeMarkdown,
+		ReplyMarkup: markup,
+	}
+	msg, err := h.bot.Send(c.Chat(), final, sendOpts)
+	if err != nil {
+		return nil
+	}
+	return msg
+}

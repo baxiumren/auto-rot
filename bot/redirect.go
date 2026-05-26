@@ -22,6 +22,7 @@ func (h *Handler) handleCF(c tele.Context) error {
 // list rules, dan auto-pick kalau cuma 1 atau kasih picker kalau banyak.
 
 func (h *Handler) handleCFAdd(c tele.Context) error {
+	h.cancelPriorPrompt(c, StepCFAddLabel)
 	if !h.cf.HasCredentials() {
 		return c.Edit(
 			"⚠️ *CF Credentials belum di-set*\n\nSet email & API key dulu lewat menu *🔧 Settings* sebelum menambah rule.",
@@ -59,14 +60,18 @@ func (h *Handler) wizardCFAddLabel(c tele.Context, sess *Session) error {
 	h.sessions.Set(c.Sender().ID, sess)
 
 	newMsg, sendErr := h.bot.Send(c.Chat(),
-		"⚙️ *Tambah CF Rule — Langkah 2 dari 2*\n\n"+
+		userTag(c.Sender())+" ⚙️ *Tambah CF Rule — Langkah 2 dari 2*\n\n"+
 			"🌐 *Ketik nama domain* yang ada di akun Cloudflare kamu:\n\n"+
 			"*Contoh:*\n"+
 			"• `example.com`\n"+
 			"• `mysite.net`\n"+
 			"• `tokoku.id`\n\n"+
 			"💡 _Gak perlu Zone ID atau Rule ID — bot bakal *auto-fetch* dari Cloudflare API. Pastikan domain udah didaftarkan di Cloudflare dan punya redirect rule aktif._",
-		cancelMenu(), tele.ModeMarkdown)
+		&tele.SendOptions{
+			ReplyTo:     c.Message(),
+			ParseMode:   tele.ModeMarkdown,
+			ReplyMarkup: cancelMenu(),
+		})
 	if sendErr != nil {
 		log.Printf("[CF_ADD] gagal kirim Step 2 prompt: %v — fallback plain text", sendErr)
 		// Fallback: kirim plain text tanpa markdown
