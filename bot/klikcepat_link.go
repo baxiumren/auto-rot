@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -308,10 +309,14 @@ func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, pag
 	// Fetch custom domains (best effort — gak fatal kalau gagal)
 	// Build map[domain_id]Host for fast lookup saat render.
 	domainMap := make(map[int]klikcepat.Domain)
-	if domains, derr := h.klikcepat.ListDomains(); derr == nil {
+	domains, derr := h.klikcepat.ListDomains()
+	if derr != nil {
+		log.Printf("[KLC-LIST] ListDomains gagal (fallback ke default URL): %v", derr)
+	} else {
 		for _, d := range domains {
 			domainMap[int(d.ID)] = d
 		}
+		log.Printf("[KLC-LIST] Loaded %d custom domains", len(domains))
 	}
 
 	typeLabel := "SHORTLINK"
@@ -351,16 +356,20 @@ func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, pag
 			enabled = "⛔"
 		}
 
-		// Build full URL: scheme://host/slug
+		// Build full URL: scheme://host/slug (custom domain or klikcepat.com fallback)
 		fullURL := buildKlikcepatFullURL(l, domainMap)
 
-		title := strings.TrimSpace(l.Title)
+		// Title = uppercase slug (display-only, klikcepat side gak berubah)
+		title := strings.ToUpper(l.URL)
 		if title == "" {
-			title = "(no title)"
+			title = "(no slug)"
 		}
 
 		sb.WriteString(fmt.Sprintf("%s *%s* %s\n", typeIconHeader, escapeMD(title), enabled))
 		sb.WriteString(fmt.Sprintf("   🌐 `%s`\n", escapeMD(fullURL)))
+		if l.LocationURL != "" {
+			sb.WriteString(fmt.Sprintf("   🎯 `%s`\n", escapeMD(l.LocationURL)))
+		}
 		sb.WriteString(fmt.Sprintf("   🆔 `%d`\n\n", int(l.ID)))
 	}
 

@@ -14,7 +14,17 @@ func (f *FlexInt) UnmarshalJSON(b []byte) error {
 	if len(b) == 0 {
 		return nil
 	}
-	// Try as string first (e.g., "123")
+	raw := string(b)
+	// Handle boolean (klikcepat API balikin is_enabled sebagai true/false)
+	if raw == "true" {
+		*f = 1
+		return nil
+	}
+	if raw == "false" || raw == "null" {
+		*f = 0
+		return nil
+	}
+	// Try as string (e.g., "123")
 	if b[0] == '"' {
 		var s string
 		if err := json.Unmarshal(b, &s); err != nil {
