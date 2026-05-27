@@ -260,6 +260,7 @@ func (h *Handler) handleKlikcepatList(c tele.Context) error {
 // If link.DomainID > 0 and domain exists in map → use custom domain (scheme://host/slug).
 // Otherwise → fallback to platform default (klikcepat.com/slug).
 func buildKlikcepatFullURL(l klikcepat.Link, domainMap map[int]klikcepat.Domain) string {
+	// Case 1: link punya explicit domain_id yang match ke custom domain
 	if d, ok := domainMap[int(l.DomainID)]; ok && d.Host != "" {
 		scheme := d.Scheme
 		if scheme == "" {
@@ -267,6 +268,21 @@ func buildKlikcepatFullURL(l klikcepat.Link, domainMap map[int]klikcepat.Domain)
 		}
 		return fmt.Sprintf("%s://%s/%s", scheme, d.Host, l.URL)
 	}
+	// Case 2: link.domain_id = 0 (no explicit) tapi user PUNYA custom domain enabled
+	// → smart fallback: pakai first enabled custom domain (user kemungkinan besar
+	//   pake klikcepat dashboard yang default ke custom domain mereka)
+	if l.DomainID == 0 && len(domainMap) > 0 {
+		for _, d := range domainMap {
+			if int(d.IsEnabled) > 0 && d.Host != "" {
+				scheme := d.Scheme
+				if scheme == "" {
+					scheme = "https"
+				}
+				return fmt.Sprintf("%s://%s/%s", scheme, d.Host, l.URL)
+			}
+		}
+	}
+	// Case 3: no custom domain available — pakai klikcepat.com default
 	return fmt.Sprintf("https://klikcepat.com/%s", l.URL)
 }
 
