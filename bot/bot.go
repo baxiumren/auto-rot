@@ -10,6 +10,7 @@ import (
 	"bongbot/checker"
 	"bongbot/cloudflare"
 	"bongbot/config"
+	"bongbot/klikcepat"
 	"bongbot/rotator"
 	"bongbot/store"
 	tele "gopkg.in/telebot.v3"
@@ -36,6 +37,9 @@ type Handler struct {
 	rotSvc     *rotator.Service
 	monScanner *rotator.MonitorScanner
 	history    *store.HistoryStore
+
+	klikcepat         *klikcepat.Client
+	klikcepatRotators *store.KlikcepatRotatorStore
 }
 
 type botNotifier struct {
@@ -71,19 +75,23 @@ func New(
 	rotSvc *rotator.Service,
 	monScanner *rotator.MonitorScanner,
 	history *store.HistoryStore,
+	klc *klikcepat.Client,
+	klcRotators *store.KlikcepatRotatorStore,
 ) *Handler {
 	return &Handler{
-		cfg:        cfg,
-		bot:        b,
-		sessions:   newSessionStore(),
-		domains:    domains,
-		cfrules:    cfrules,
-		rotators:   rotators,
-		creds:      creds,
-		cf:         cf,
-		rotSvc:     rotSvc,
-		monScanner: monScanner,
-		history:    history,
+		cfg:               cfg,
+		bot:               b,
+		sessions:          newSessionStore(),
+		domains:           domains,
+		cfrules:           cfrules,
+		rotators:          rotators,
+		creds:             creds,
+		cf:                cf,
+		rotSvc:            rotSvc,
+		monScanner:        monScanner,
+		history:           history,
+		klikcepat:         klc,
+		klikcepatRotators: klcRotators,
 	}
 }
 
@@ -411,6 +419,10 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleRotatorBulkProceed(c)
 	case cbRotatorBulkPickPool:
 		return h.handleRotatorBulkPickPool(c)
+
+	// Klikcepat
+	case cbKlikcepat:
+		return h.handleKlikcepat(c)
 
 	// Health Dashboard & History
 	case cbHistory:

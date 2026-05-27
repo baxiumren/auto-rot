@@ -9,6 +9,7 @@ import (
 	"bongbot/checker"
 	"bongbot/cloudflare"
 	"bongbot/config"
+	"bongbot/klikcepat"
 	"bongbot/rotator"
 	"bongbot/store"
 	tele "gopkg.in/telebot.v3"
@@ -48,6 +49,27 @@ func main() {
 	}
 	cf := cloudflare.New(cfEmail, cfKey)
 
+	// Klikcepat (66biolinks) integration — credentials prioritas: credentials.json > .env
+	klcBaseURL := cfg.KlikcepatBaseURL
+	klcAPIKey := cfg.KlikcepatAPIKey
+	if cred := creds.Get(); cred.KlikcepatBaseURL != "" || cred.KlikcepatAPIKey != "" {
+		if cred.KlikcepatBaseURL != "" {
+			klcBaseURL = cred.KlikcepatBaseURL
+		}
+		if cred.KlikcepatAPIKey != "" {
+			klcAPIKey = cred.KlikcepatAPIKey
+		}
+		log.Printf("✅ Klikcepat credentials loaded dari data/credentials.json")
+	}
+	klc := klikcepat.New(klcBaseURL, klcAPIKey)
+	if klc.HasCredentials() {
+		log.Printf("✅ Klikcepat client siap (base=%s)", klcBaseURL)
+	} else {
+		log.Printf("⚠️  Klikcepat credentials belum di-set — fitur klikcepat disabled. Pakai menu 🔧 Settings → 🔗 Klikcepat.")
+	}
+
+	klcRotators := store.NewKlikcepatRotatorStore()
+
 	// Optional API keys untuk checker (Source 2 & 3)
 	if cfg.TrustPositifKey != "" {
 		checker.SetAPIKey(cfg.TrustPositifKey)
@@ -84,7 +106,7 @@ func main() {
 	monScanner := rotator.NewMonitorScanner(cf, domains, cfrules, rotators, notify, cfg.CheckInterval, history)
 
 	// Handler bot
-	h := bot.New(b, cfg, domains, cfrules, rotators, creds, cf, rotSvc, monScanner, history)
+	h := bot.New(b, cfg, domains, cfrules, rotators, creds, cf, rotSvc, monScanner, history, klc, klcRotators)
 	h.Register()
 
 	// Backfill: rule lama yg field Domain-nya kosong → fetch zone name dari CF.
