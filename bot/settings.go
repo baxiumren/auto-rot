@@ -22,13 +22,15 @@ func (h *Handler) handleSettings(c tele.Context) error {
 		klcStatus = "✅ aktif"
 	}
 
+	// Plain text only — no italic/underscore to avoid markdown parse errors
+	// from emoji + special chars combinations.
 	text := fmt.Sprintf(
 		"🔧 *Settings — Pilih Akun*\n\n"+
 			"Bot ini connect ke 2 platform external:\n\n"+
-			"⚙️ *Cloudflare* — %s\n"+
-			"_Untuk auto-rotate redirect rule kamu._\n\n"+
-			"🔗 *Klikcepat* — %s\n"+
-			"_Untuk auto-rotate target URL biolink / shortlink kamu._\n\n"+
+			"⚙️ *Cloudflare*: %s\n"+
+			"   Untuk auto-rotate redirect rule Cloudflare.\n\n"+
+			"🔗 *Klikcepat*: %s\n"+
+			"   Untuk auto-rotate target URL biolink / shortlink.\n\n"+
 			"━━━━━━━━━━━━━━━━━━\n"+
 			"Pilih platform yang mau di-configure:",
 		cfStatus, klcStatus,
