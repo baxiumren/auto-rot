@@ -255,6 +255,20 @@ func (h *Handler) handleKlikcepatList(c tele.Context) error {
 	return h.renderKlikcepatListByType(c, linkType, page)
 }
 
+// buildKlikcepatFullURL constructs the public-facing URL for a link.
+// If link.DomainID > 0 and domain exists in map → use custom domain (scheme://host/slug).
+// Otherwise → fallback to platform default (klikcepat.com/slug).
+func buildKlikcepatFullURL(l klikcepat.Link, domainMap map[int]klikcepat.Domain) string {
+	if d, ok := domainMap[int(l.DomainID)]; ok && d.Host != "" {
+		scheme := d.Scheme
+		if scheme == "" {
+			scheme = "https"
+		}
+		return fmt.Sprintf("%s://%s/%s", scheme, d.Host, l.URL)
+	}
+	return fmt.Sprintf("https://klikcepat.com/%s", l.URL)
+}
+
 // renderKlikcepatListTypePicker — first screen: pick Biolink vs Shortlink.
 func (h *Handler) renderKlikcepatListTypePicker(c tele.Context) error {
 	m := &tele.ReplyMarkup{}
@@ -275,7 +289,7 @@ func (h *Handler) renderKlikcepatListTypePicker(c tele.Context) error {
 
 // renderKlikcepatListByType — paginated list filtered by type (link / biolink).
 func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, page int) error {
-	c.Edit("⏳ Loading links...", tele.ModeMarkdown)
+	c.Edit("⏳ Loading links + domains...", tele.ModeMarkdown)
 	links, err := h.klikcepat.ListLinks(linkType)
 	if err != nil {
 		return c.Edit(
@@ -290,6 +304,15 @@ func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, pag
 		}
 	}
 	links = filtered
+
+	// Fetch custom domains (best effort — gak fatal kalau gagal)
+	// Build map[domain_id]Host for fast lookup saat render.
+	domainMap := make(map[int]klikcepat.Domain)
+	if domains, derr := h.klikcepat.ListDomains(); derr == nil {
+		for _, d := range domains {
+			domainMap[int(d.ID)] = d
+		}
+	}
 
 	typeLabel := "SHORTLINK"
 	typeIconHeader := "🔗"
@@ -327,11 +350,27 @@ func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, pag
 		if l.IsEnabled == 0 {
 			enabled = "⛔"
 		}
-		sb.WriteString(fmt.Sprintf("%s *%s* (`/%s`) %s\n", typeIconHeader, escapeMD(l.Title), escapeMD(l.URL), enabled))
-		if l.LocationURL != "" {
-			sb.WriteString(fmt.Sprintf("   🎯 `%s`\n", escapeMD(l.LocationURL)))
+
+		// Build full URL: scheme://host/slug
+		fullURL := buildKlikcepatFullURL(l, domainMap)
+
+		title := strings.TrimSpace(l.Title)
+		if title == "" {
+			title = "(no title)"
 		}
-		sb.WriteString(fmt.Sprintf("   🆔 `%d`\n\n", l.ID))
+
+		sb.WriteString(fmt.Sprintf("%s *%s* %s\n", typeIconHeader, escapeMD(title), enabled))
+		sb.WriteString(fmt.Sprintf("   🌐 `%s`\n", escapeMD(fullURL)))
+		if linkType == "link" && l.LocationURL != "" {
+			// Shortlink: show target redirect (relevant for auto-swap)
+			sb.WriteString(fmt.Sprintf("   🎯 → `%s`\n", escapeMD(l.LocationURL)))
+		}
+		sb.WriteString(fmt.Sprintf("   🆔 `%d`\n\n", int(l.ID)))
+	}
+
+	if linkType == "biolink" {
+		sb.WriteString("_💡 Biolink page punya buttons di dalamnya (LOGIN/DAFTAR/dll)._\n")
+		sb.WriteString("_Buttons (blocks) gak bisa di-CRUD via API standard — manage via dashboard._\n\n")
 	}
 
 	m := &tele.ReplyMarkup{}

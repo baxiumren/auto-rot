@@ -325,3 +325,21 @@ func (c *Client) DeleteProject(id int) error {
 	_, err := c.do(http.MethodDelete, fmt.Sprintf("/api/projects/%d", id), nil)
 	return err
 }
+
+// ─── Domains API ──────────────────────────────────────────────────────────────
+
+// ListDomains returns user's custom domains. Used for full-URL display in lists.
+// Hard cap 1000 (same pagination limit as other endpoints).
+func (c *Client) ListDomains() ([]Domain, error) {
+	data, err := c.do(http.MethodGet, "/api/domains?results_per_page=1000", nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Data []Domain `json:"data"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("parse domains: %w", err)
+	}
+	return resp.Data, nil
+}

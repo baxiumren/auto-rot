@@ -69,3 +69,13 @@ type Project struct {
 	Name  string  `json:"name"`
 	Color string  `json:"color"`
 }
+
+// Domain represents a klikcepat custom domain (e.g., klikcepat.vip, links.maha.com).
+// Each link can be assigned a domain_id; if 0, uses platform default.
+type Domain struct {
+	ID        FlexInt `json:"id"`
+	UserID    FlexInt `json:"user_id"`
+	Scheme    string  `json:"scheme"` // "http" or "https"
+	Host      string  `json:"host"`   // "klikcepat.vip"
+	IsEnabled FlexInt `json:"is_enabled"`
+}
