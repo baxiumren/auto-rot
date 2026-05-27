@@ -320,11 +320,19 @@ func (ms *MonitorScanner) scanOnce() {
 			skippedSticky++
 			// Pastikan ms.blocked tracks domain ini (kalau belum, register sekarang)
 			ms.ensureBlockedTracked(e.domain, e.label)
+			// Retry klikcepat swap tiap cycle kalau location_url masih match
+			// (idempotent — skip otomatis kalau host udah beda)
+			if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
+				ms.triggerKlikcepatAutoSwap(e.domain, e.label)
+			}
 			continue
 		}
 		if ms.chk.IsForceBlocked(e.domain) {
 			skippedSticky++
 			ms.ensureBlockedTracked(e.domain, e.label)
+			if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
+				ms.triggerKlikcepatAutoSwap(e.domain, e.label)
+			}
 			continue
 		}
 		active = append(active, e)
