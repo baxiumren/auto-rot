@@ -311,12 +311,25 @@ func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, pag
 	domainMap := make(map[int]klikcepat.Domain)
 	domains, derr := h.klikcepat.ListDomains()
 	if derr != nil {
-		log.Printf("[KLC-LIST] ListDomains gagal (fallback ke default URL): %v", derr)
+		log.Printf("[KLC-LIST] ListDomains ERROR (fallback ke default URL): %v", derr)
 	} else {
+		log.Printf("[KLC-LIST] ListDomains returned %d domains", len(domains))
 		for _, d := range domains {
 			domainMap[int(d.ID)] = d
+			log.Printf("[KLC-LIST] Domain: ID=%d Scheme=%q Host=%q IsEnabled=%d",
+				int(d.ID), d.Scheme, d.Host, int(d.IsEnabled))
 		}
-		log.Printf("[KLC-LIST] Loaded %d custom domains", len(domains))
+	}
+
+	// Diagnostic: log first link's DomainID to verify matching
+	if len(links) > 0 {
+		first := links[0]
+		matched := "NO-MATCH"
+		if d, ok := domainMap[int(first.DomainID)]; ok {
+			matched = fmt.Sprintf("MATCHED host=%s", d.Host)
+		}
+		log.Printf("[KLC-LIST] First link sample: ID=%d Slug=%q DomainID=%d → %s",
+			int(first.ID), first.URL, int(first.DomainID), matched)
 	}
 
 	typeLabel := "SHORTLINK"
