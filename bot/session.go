@@ -53,7 +53,9 @@ const (
 	// Klikcepat Settings
 	StepSettingsKlikcepatURL    Step = "settings_klikcepat_url"
 	StepSettingsKlikcepatKey    Step = "settings_klikcepat_key"
-	StepSettingsKlikcepatDomain Step = "settings_klikcepat_domain"
+	StepSettingsKlikcepatDomain   Step = "settings_klikcepat_domain"
+	StepSettingsKlikcepatDomMapID Step = "settings_klikcepat_dommap_id"   // input domain ID
+	StepSettingsKlikcepatDomMapHost Step = "settings_klikcepat_dommap_host" // input host
 
 	// Klikcepat Link CRUD
 	StepKlikcepatAddType        Step = "klikcepat_add_type"

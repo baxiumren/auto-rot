@@ -422,11 +422,12 @@ func (hs *HistoryStore) Clear() {
 // ─── Credentials (CF Email & API Key) ────────────────────────────────────────
 
 type Credentials struct {
-	CFEmail                string `json:"cf_email"`
-	CFAPIKey               string `json:"cf_api_key"`
-	KlikcepatBaseURL       string `json:"klikcepat_base_url"`
-	KlikcepatAPIKey        string `json:"klikcepat_api_key"`
-	KlikcepatDisplayDomain string `json:"klikcepat_display_domain"` // custom display domain (e.g., thymeband.com)
+	CFEmail                string         `json:"cf_email"`
+	CFAPIKey               string         `json:"cf_api_key"`
+	KlikcepatBaseURL       string         `json:"klikcepat_base_url"`
+	KlikcepatAPIKey        string         `json:"klikcepat_api_key"`
+	KlikcepatDisplayDomain string         `json:"klikcepat_display_domain"` // [DEPRECATED] single default — kept for backward compat
+	KlikcepatDomainMap     map[int]string `json:"klikcepat_domain_map"`     // domain_id → host (e.g., 2 → klikcepat.vip)
 }
 
 type CredentialStore struct {
@@ -493,6 +494,45 @@ func (s *CredentialStore) SetKlikcepatAPIKey(key string) {
 	defer s.mu.Unlock()
 	s.data.KlikcepatAPIKey = strings.TrimSpace(key)
 	go s.save()
+}
+
+// SetKlikcepatDomainMapping adds/updates domain ID → host mapping.
+// domain ID is from klikcepat (e.g., 2 → "klikcepat.vip").
+func (s *CredentialStore) SetKlikcepatDomainMapping(id int, host string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.KlikcepatDomainMap == nil {
+		s.data.KlikcepatDomainMap = make(map[int]string)
+	}
+	host = strings.TrimSpace(host)
+	host = strings.TrimPrefix(host, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	host = strings.TrimSuffix(host, "/")
+	s.data.KlikcepatDomainMap[id] = host
+	go s.save()
+}
+
+// RemoveKlikcepatDomainMapping deletes a mapping by ID. Return true if existed.
+func (s *CredentialStore) RemoveKlikcepatDomainMapping(id int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.data.KlikcepatDomainMap[id]; !ok {
+		return false
+	}
+	delete(s.data.KlikcepatDomainMap, id)
+	go s.save()
+	return true
+}
+
+// GetKlikcepatDomainMap returns a copy of the mappings.
+func (s *CredentialStore) GetKlikcepatDomainMap() map[int]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int]string, len(s.data.KlikcepatDomainMap))
+	for k, v := range s.data.KlikcepatDomainMap {
+		out[k] = v
+	}
+	return out
 }
 
 func (s *CredentialStore) SetKlikcepatDisplayDomain(domain string) {

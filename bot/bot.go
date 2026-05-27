@@ -528,6 +528,14 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleSettingsKlikcepatSetKey(c)
 	case cbSettingsKlikcepatSetDomain:
 		return h.handleSettingsKlikcepatSetDomain(c)
+	case cbSettingsKlikcepatDomMap:
+		return h.handleSettingsKlikcepatDomMap(c)
+	case cbSettingsKlikcepatDomMapAdd:
+		return h.handleSettingsKlikcepatDomMapAdd(c)
+	case cbSettingsKlikcepatDomMapDel:
+		return h.handleSettingsKlikcepatDomMapDel(c)
+	case cbSettingsKlikcepatDomMapDelID:
+		return h.handleSettingsKlikcepatDomMapDelID(c)
 	case cbSettingsKlikcepatTest:
 		return h.handleSettingsKlikcepatTest(c)
 	case cbSettingsKlikcepatClear:
@@ -665,6 +673,10 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardSettingsKlikcepatKey(c, sess)
 	case StepSettingsKlikcepatDomain:
 		return h.wizardSettingsKlikcepatDomain(c, sess)
+	case StepSettingsKlikcepatDomMapID:
+		return h.wizardSettingsKlikcepatDomMapID(c, sess)
+	case StepSettingsKlikcepatDomMapHost:
+		return h.wizardSettingsKlikcepatDomMapHost(c, sess)
 
 	// Klikcepat Add Link wizard
 	case StepKlikcepatAddType, StepKlikcepatAddProject:

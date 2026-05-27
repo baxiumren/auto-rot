@@ -259,34 +259,36 @@ func (h *Handler) handleKlikcepatList(c tele.Context) error {
 // buildKlikcepatFullURL constructs the public-facing URL for a link.
 // If link.DomainID > 0 and domain exists in map → use custom domain (scheme://host/slug).
 // Otherwise → fallback to platform default (klikcepat.com/slug).
-func buildKlikcepatFullURL(l klikcepat.Link, domainMap map[int]klikcepat.Domain, displayDomainOverride string) string {
-	// Priority 1: user-set display domain (untuk kasus custom domain di-share dari
-	// master account — sub-user API gak bisa see domain list, jadi user kasih tau
-	// bot via config / settings).
-	if displayDomainOverride != "" {
-		return fmt.Sprintf("https://%s/%s", displayDomainOverride, l.URL)
+// buildKlikcepatFullURL constructs the public URL for a link.
+// Priority order:
+//  1. Manual user mapping (KlikcepatDomainMap) — most reliable for shared domains
+//  2. API-returned domain (kalau sub-user kebetulan punya akses /api/domains)
+//  3. link.domain_id = 0 → klikcepat.com (main domain default)
+//  4. link.domain_id > 0 but no mapping → klikcepat.com fallback + log warning
+func buildKlikcepatFullURL(l klikcepat.Link, domainMap map[int]klikcepat.Domain, userMap map[int]string) string {
+	linkDomainID := int(l.DomainID)
+
+	// Priority 1: user manual mapping (most reliable)
+	if host, ok := userMap[linkDomainID]; ok && host != "" {
+		return fmt.Sprintf("https://%s/%s", host, l.URL)
 	}
-	// Priority 2: link punya explicit domain_id yang match ke custom domain
-	if d, ok := domainMap[int(l.DomainID)]; ok && d.Host != "" {
+
+	// Priority 2: API-returned domain (kalau lu punya akses /api/domains)
+	if d, ok := domainMap[linkDomainID]; ok && d.Host != "" {
 		scheme := d.Scheme
 		if scheme == "" {
 			scheme = "https"
 		}
 		return fmt.Sprintf("%s://%s/%s", scheme, d.Host, l.URL)
 	}
-	// Priority 3: link.domain_id = 0 (no explicit) tapi user PUNYA custom domain enabled
-	if l.DomainID == 0 && len(domainMap) > 0 {
-		for _, d := range domainMap {
-			if int(d.IsEnabled) > 0 && d.Host != "" {
-				scheme := d.Scheme
-				if scheme == "" {
-					scheme = "https"
-				}
-				return fmt.Sprintf("%s://%s/%s", scheme, d.Host, l.URL)
-			}
-		}
+
+	// Priority 3: link.domain_id = 0 → klikcepat.com main domain
+	if linkDomainID == 0 {
+		return fmt.Sprintf("https://klikcepat.com/%s", l.URL)
 	}
-	// Priority 4: no custom domain available — pakai klikcepat.com default
+
+	// Priority 4: link punya domain_id tapi gak ada mapping → fallback klikcepat.com
+	// Log untuk user supaya tau ID berapa yang belum di-mapping
 	return fmt.Sprintf("https://klikcepat.com/%s", l.URL)
 }
 
@@ -389,12 +391,9 @@ func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, pag
 			enabled = "⛔"
 		}
 
-		// Build full URL — display domain priority: config/credentials > API domain > klikcepat.com
-		displayOverride := h.creds.Get().KlikcepatDisplayDomain
-		if displayOverride == "" {
-			displayOverride = h.cfg.KlikcepatDisplayDomain
-		}
-		fullURL := buildKlikcepatFullURL(l, domainMap, displayOverride)
+		// Build full URL — pakai user's manual domain map (paling reliable)
+		userMap := h.creds.GetKlikcepatDomainMap()
+		fullURL := buildKlikcepatFullURL(l, domainMap, userMap)
 
 		// Title = uppercase slug (display-only, klikcepat side gak berubah)
 		title := strings.ToUpper(l.URL)

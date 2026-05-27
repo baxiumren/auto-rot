@@ -103,7 +103,11 @@ const (
 	cbSettingsKlikcepat       = "settings_klikcepat"
 	cbSettingsKlikcepatSetURL    = "settings_klc_url"
 	cbSettingsKlikcepatSetKey    = "settings_klc_key"
-	cbSettingsKlikcepatSetDomain = "settings_klc_domain"
+	cbSettingsKlikcepatSetDomain   = "settings_klc_domain"
+	cbSettingsKlikcepatDomMap      = "settings_klc_dommap"        // root domain map manager
+	cbSettingsKlikcepatDomMapAdd   = "settings_klc_dommap_add"    // add wizard entry
+	cbSettingsKlikcepatDomMapDel   = "settings_klc_dommap_del"    // delete picker entry
+	cbSettingsKlikcepatDomMapDelID = "settings_klc_dommap_delid"  // param = id to delete
 	cbSettingsKlikcepatTest   = "settings_klc_test"
 	cbSettingsKlikcepatClear  = "settings_klc_clear"
 

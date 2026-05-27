@@ -2,6 +2,8 @@ package bot
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	"bongbot/store"
@@ -44,6 +46,14 @@ func (h *Handler) handleSettingsKlikcepat(c tele.Context) error {
 		statusURL, statusKey, statusDomain,
 	)
 
+	// Status mappings
+	mapCount := len(h.creds.GetKlikcepatDomainMap())
+	statusMappings := fmt.Sprintf("✅ `%d mapping`", mapCount)
+	if mapCount == 0 {
+		statusMappings = "❌ belum di-set"
+	}
+	text += fmt.Sprintf("\n🏷 *Domain Mappings:* %s", statusMappings)
+
 	m := &tele.ReplyMarkup{}
 	m.Inline(
 		m.Row(
@@ -51,7 +61,7 @@ func (h *Handler) handleSettingsKlikcepat(c tele.Context) error {
 			m.Data("🔑 Set API Key", cbSettingsKlikcepatSetKey),
 		),
 		m.Row(
-			m.Data("🏷 Set Display Domain", cbSettingsKlikcepatSetDomain),
+			m.Data("🏷 Manage Domain Mappings", cbSettingsKlikcepatDomMap),
 		),
 		m.Row(
 			m.Data("✅ Test Koneksi", cbSettingsKlikcepatTest),
@@ -200,4 +210,135 @@ func (h *Handler) handleSettingsKlikcepatClear(c tele.Context) error {
 func (h *Handler) applyKlikcepatCreds() {
 	cred := h.creds.Get()
 	h.klikcepat.SetCredentials(cred.KlikcepatBaseURL, cred.KlikcepatAPIKey)
+}
+
+// ─── Domain Mappings Management ──────────────────────────────────────────────
+
+func (h *Handler) handleSettingsKlikcepatDomMap(c tele.Context) error {
+	mapping := h.creds.GetKlikcepatDomainMap()
+	var sb strings.Builder
+	sb.WriteString("🏷 *Domain Mappings*\n═══════════════════════════\n\n")
+	sb.WriteString("Map domain_id (dari klikcepat) → host (yang dipake di URL).\n")
+	sb.WriteString("Bot pake mapping ini untuk display URL link per-link accurate.\n\n")
+	if len(mapping) == 0 {
+		sb.WriteString("_📭 Belum ada mapping._\n_Klik *➕ Tambah* untuk mulai._\n\n")
+	} else {
+		sb.WriteString("*Current mappings:*\n")
+		ids := make([]int, 0, len(mapping))
+		for id := range mapping {
+			ids = append(ids, id)
+		}
+		sort.Ints(ids)
+		for _, id := range ids {
+			sb.WriteString(fmt.Sprintf("• ID `%d` → `%s`\n", id, escapeMD(mapping[id])))
+		}
+		sb.WriteString("\n_(ID `0` = klikcepat.com default — gak perlu di-map.)_\n")
+	}
+
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("➕ Tambah Mapping", cbSettingsKlikcepatDomMapAdd),
+			m.Data("🗑 Hapus Mapping", cbSettingsKlikcepatDomMapDel),
+		),
+		m.Row(m.Data("🔙 Kembali", cbSettingsKlikcepat)),
+	)
+	return c.Edit(sb.String(), m, tele.ModeMarkdown)
+}
+
+func (h *Handler) handleSettingsKlikcepatDomMapAdd(c tele.Context) error {
+	h.cancelPriorPrompt(c, StepSettingsKlikcepatDomMapID)
+	prompt := "➕ *Tambah Domain Mapping — Step 1/2*\n\n" +
+		"Ketik *domain ID* dari klikcepat (angka).\n\n" +
+		"*Contoh:* `2` (untuk klikcepat.vip)\n\n" +
+		"💡 _Cara tau ID:_ Liat di klikcepat admin panel → Domains → URL bar nampilin ID."
+	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
+	if msg == nil {
+		msg = c.Message()
+	}
+	h.sessions.Set(c.Sender().ID, &Session{
+		Step:      StepSettingsKlikcepatDomMapID,
+		Data:      make(map[string]string),
+		PromptMsg: msg,
+	})
+	return nil
+}
+
+func (h *Handler) wizardSettingsKlikcepatDomMapID(c tele.Context, sess *Session) error {
+	h.showTyping(c)
+	idStr := strings.TrimSpace(c.Text())
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		return h.reply(c, "⚠️ ID harus angka positif (e.g., `2`). Coba lagi:", cancelMenu())
+	}
+	sess.Data["domain_id"] = idStr
+	sess.Step = StepSettingsKlikcepatDomMapHost
+	h.sessions.Set(c.Sender().ID, sess)
+
+	prompt := fmt.Sprintf(
+		"➕ *Step 2/2 — Host*\n\nID: `%d` ✅\n\n"+
+			"Ketik *host domain* (tanpa https://, tanpa trailing slash).\n\n"+
+			"*Contoh:*\n• `klikcepat.vip`\n• `thymeband.com`\n• `links.maha-domain.com`",
+		id)
+	newMsg, _ := h.bot.Send(c.Chat(),
+		userTag(c.Sender())+" "+prompt,
+		&tele.SendOptions{ReplyTo: c.Message(), ParseMode: tele.ModeMarkdown, ReplyMarkup: cancelMenu()})
+	if newMsg != nil {
+		sess.PromptMsg = newMsg
+		h.sessions.Set(c.Sender().ID, sess)
+	}
+	return nil
+}
+
+func (h *Handler) wizardSettingsKlikcepatDomMapHost(c tele.Context, sess *Session) error {
+	h.showTyping(c)
+	host := strings.TrimSpace(c.Text())
+	host = strings.TrimPrefix(host, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	host = strings.TrimSuffix(host, "/")
+	if host == "" {
+		return h.reply(c, "⚠️ Host kosong. Coba lagi:", cancelMenu())
+	}
+	id, _ := strconv.Atoi(sess.Data["domain_id"])
+	h.creds.SetKlikcepatDomainMapping(id, host)
+	h.sessions.Delete(c.Sender().ID)
+	return h.reply(c,
+		fmt.Sprintf("✅ *Mapping tersimpan!*\n\n• ID `%d` → `%s`\n\nDomain ini sekarang dipake untuk display semua link dengan domain_id=%d.", id, escapeMD(host), id),
+		backToSettings(), tele.ModeMarkdown)
+}
+
+func (h *Handler) handleSettingsKlikcepatDomMapDel(c tele.Context) error {
+	mapping := h.creds.GetKlikcepatDomainMap()
+	if len(mapping) == 0 {
+		return c.Edit("📭 Belum ada mapping untuk dihapus.",
+			backToSettings(), tele.ModeMarkdown)
+	}
+	m := &tele.ReplyMarkup{}
+	var rows []tele.Row
+	ids := make([]int, 0, len(mapping))
+	for id := range mapping {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	for _, id := range ids {
+		rows = append(rows, m.Row(m.Data(
+			fmt.Sprintf("🗑 ID %d → %s", id, mapping[id]),
+			cbSettingsKlikcepatDomMapDelID, strconv.Itoa(id))))
+	}
+	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbSettingsKlikcepatDomMap)))
+	m.Inline(rows...)
+	return c.Edit("🗑 *Pilih mapping yang mau dihapus:*", m, tele.ModeMarkdown)
+}
+
+func (h *Handler) handleSettingsKlikcepatDomMapDelID(c tele.Context) error {
+	idStr := extractParam(c)
+	id, _ := strconv.Atoi(idStr)
+	if id <= 0 {
+		return h.handleSettingsKlikcepatDomMapDel(c)
+	}
+	if h.creds.RemoveKlikcepatDomainMapping(id) {
+		return c.Edit(fmt.Sprintf("✅ Mapping ID `%d` dihapus.", id),
+			backToSettings(), tele.ModeMarkdown)
+	}
+	return c.Edit("⚠️ Mapping gak ditemukan.", backToSettings(), tele.ModeMarkdown)
 }
