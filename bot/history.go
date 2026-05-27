@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -79,7 +80,21 @@ func (h *Handler) handleHistory(c tele.Context) error {
 		m.Row(m.Data("🗑 Clear History", cbHistoryClear)),
 		m.Row(m.Data("🔙 Kembali", cbRotator)),
 	)
-	return c.Edit(text, m, tele.ModeMarkdown)
+	if err := c.Edit(text, m, tele.ModeMarkdown); err != nil {
+		log.Printf("[HISTORY] markdown edit gagal (%v), fallback ke plain text", err)
+		plain := stripMD(text)
+		if err2 := c.Edit(plain, m); err2 != nil {
+			log.Printf("[HISTORY] plain edit juga gagal: %v", err2)
+			return err2
+		}
+	}
+	return nil
+}
+
+// stripMD bersihin marker markdown V1 buat fallback ke plain text.
+func stripMD(s string) string {
+	r := strings.NewReplacer("*", "", "`", "", "\\_", "_", "\\*", "*", "\\`", "`", "\\[", "[")
+	return r.Replace(s)
 }
 
 func (h *Handler) handleHistoryClearConfirm(c tele.Context) error {
