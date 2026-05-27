@@ -10,6 +10,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Version — semver versioning untuk bot.
+// Update tiap release significant (lihat CHANGELOG.md untuk history).
+const Version = "1.0.0"
+
 type Config struct {
 	BotToken        string
 	AllowedChatID   int64

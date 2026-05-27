@@ -191,20 +191,22 @@ func (h *Handler) handleStart(c tele.Context) error {
 	}
 
 	return c.Send(
-		"🎰🚀 *BONG BOT — ALL IN ONE FITUR BOT PALING GACOR!* 🔥\n\n"+
-			"🤖 _Bot anti-nawala buat pejuang affiliate Indonesia._ 🇮🇩\n\n"+
-			"💡 *Yang bot ini bisa:*\n"+
-			"• 👀 Pantau domain 24/7 (Kominfo + TrustPositif + NawalaCheck)\n"+
-			"• ⚡ Auto-swap Cloudflare redirect rule pas kena blokir\n"+
-			"• 🔗 Auto-swap link klikcepat (biolink + shortlink) juga\n"+
-			"• 📦 Bulk setup — handle banyak rule/link sekaligus\n"+
-			"• 🛡 Multi-admin private bot dengan group alert mode\n\n"+
-			"━━━━━━━━━━━━━━━━━━\n"+
-			"*🔰 Buat pemula, urutannya:*\n\n"+
-			"1️⃣ *📡 Monitor* — daftarin semua domain kamu (per label)\n\n"+
-			"2️⃣ *⚙️ CF Redirect* atau *🔗 KLIKCEPAT* — register rule/link\n\n"+
-			"3️⃣ *🔄 Auto Rotator* — hubungin CF/Klikcepat + pool domain → bot kerja otomatis 24/7\n\n"+
-			"🎯 _Pilih menu di bawah buat mulai 👇_",
+		fmt.Sprintf(
+			"🎰🚀 *BONG BOT v%s — ALL IN ONE FITUR BOT PALING GACOR!* 🔥\n\n"+
+				"🤖 _Bot anti-nawala buat pejuang affiliate Indonesia._ 🇮🇩\n\n"+
+				"💡 *Yang bot ini bisa:*\n"+
+				"• 👀 Pantau domain 24/7 (Kominfo + TrustPositif + NawalaCheck)\n"+
+				"• ⚡ Auto-swap Cloudflare redirect rule pas kena blokir\n"+
+				"• 🔗 Auto-swap link klikcepat (biolink + shortlink) juga\n"+
+				"• 📦 Bulk setup — handle banyak rule/link sekaligus\n"+
+				"• 🛡 Multi-admin private bot dengan group alert mode\n\n"+
+				"━━━━━━━━━━━━━━━━━━\n"+
+				"*🔰 Buat pemula, urutannya:*\n\n"+
+				"1️⃣ *📡 Monitor* — daftarin semua domain kamu (per label)\n\n"+
+				"2️⃣ *⚙️ CF Redirect* atau *🔗 KLIKCEPAT* — register rule/link\n\n"+
+				"3️⃣ *🔄 Auto Rotator* — hubungin CF/Klikcepat + pool domain → bot kerja otomatis 24/7\n\n"+
+				"🎯 _Pilih menu di bawah buat mulai 👇_",
+			config.Version),
 		mainMenu(), tele.ModeMarkdown,
 	)
 }

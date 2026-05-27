@@ -119,8 +119,8 @@ func main() {
 	rotSvc.Start()
 	monScanner.Start()
 
-	log.Printf("✅ BongBot started | interval=%v | admins=%d | sticky=%d",
-		cfg.CheckInterval, len(cfg.AdminIDs), len(checker.Default().GetStickyList()))
+	log.Printf("✅ BongBot v%s started | interval=%v | admins=%d | sticky=%d",
+		config.Version, cfg.CheckInterval, len(cfg.AdminIDs), len(checker.Default().GetStickyList()))
 
 	b.Start()
 }
