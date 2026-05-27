@@ -228,3 +228,90 @@ func (c *Client) DeleteLink(id int) error {
 	_, err := c.do(http.MethodDelete, fmt.Sprintf("/api/links/%d", id), nil)
 	return err
 }
+
+// ─── Projects API ─────────────────────────────────────────────────────────────
+
+// unmarshalProject parses a single-project {"data": {...}} response.
+func unmarshalProject(data []byte) (*Project, error) {
+	var resp struct {
+		Data Project `json:"data"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("parse project: %w", err)
+	}
+	return &resp.Data, nil
+}
+
+// ListProjects returns up to 1000 projects (hardcoded cap, silently truncated beyond).
+func (c *Client) ListProjects() ([]Project, error) {
+	data, err := c.do(http.MethodGet, "/api/projects?results_per_page=1000", nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Data []Project `json:"data"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("parse projects: %w", err)
+	}
+	return resp.Data, nil
+}
+
+func (c *Client) GetProject(id int) (*Project, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("klikcepat: invalid project id %d", id)
+	}
+	data, err := c.do(http.MethodGet, fmt.Sprintf("/api/projects/%d", id), nil)
+	if err != nil {
+		return nil, err
+	}
+	return unmarshalProject(data)
+}
+
+// CreateProject creates a new project. color defaults to "#000000" if empty.
+func (c *Client) CreateProject(name, color string) (*Project, error) {
+	if name == "" {
+		return nil, fmt.Errorf("klikcepat: project name required")
+	}
+	if color == "" {
+		color = "#000000"
+	}
+	form := url.Values{}
+	form.Set("name", name)
+	form.Set("color", color)
+	data, err := c.do(http.MethodPost, "/api/projects", form)
+	if err != nil {
+		return nil, err
+	}
+	return unmarshalProject(data)
+}
+
+// UpdateProject updates name and/or color. Empty strings = field not updated.
+func (c *Client) UpdateProject(id int, name, color string) (*Project, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("klikcepat: invalid project id %d", id)
+	}
+	if name == "" && color == "" {
+		return nil, fmt.Errorf("klikcepat: no fields to update")
+	}
+	form := url.Values{}
+	if name != "" {
+		form.Set("name", name)
+	}
+	if color != "" {
+		form.Set("color", color)
+	}
+	data, err := c.do(http.MethodPost, fmt.Sprintf("/api/projects/%d", id), form)
+	if err != nil {
+		return nil, err
+	}
+	return unmarshalProject(data)
+}
+
+func (c *Client) DeleteProject(id int) error {
+	if id <= 0 {
+		return fmt.Errorf("klikcepat: invalid project id %d", id)
+	}
+	_, err := c.do(http.MethodDelete, fmt.Sprintf("/api/projects/%d", id), nil)
+	return err
+}
