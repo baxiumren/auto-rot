@@ -51,8 +51,9 @@ const (
 	StepGlobalSearch Step = "global_search"
 
 	// Klikcepat Settings
-	StepSettingsKlikcepatURL Step = "settings_klikcepat_url"
-	StepSettingsKlikcepatKey Step = "settings_klikcepat_key"
+	StepSettingsKlikcepatURL    Step = "settings_klikcepat_url"
+	StepSettingsKlikcepatKey    Step = "settings_klikcepat_key"
+	StepSettingsKlikcepatDomain Step = "settings_klikcepat_domain"
 
 	// Klikcepat Link CRUD
 	StepKlikcepatAddType        Step = "klikcepat_add_type"

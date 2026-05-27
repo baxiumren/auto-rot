@@ -101,8 +101,9 @@ const (
 
 	// Klikcepat Settings
 	cbSettingsKlikcepat       = "settings_klikcepat"
-	cbSettingsKlikcepatSetURL = "settings_klc_url"
-	cbSettingsKlikcepatSetKey = "settings_klc_key"
+	cbSettingsKlikcepatSetURL    = "settings_klc_url"
+	cbSettingsKlikcepatSetKey    = "settings_klc_key"
+	cbSettingsKlikcepatSetDomain = "settings_klc_domain"
 	cbSettingsKlikcepatTest   = "settings_klc_test"
 	cbSettingsKlikcepatClear  = "settings_klc_clear"
 

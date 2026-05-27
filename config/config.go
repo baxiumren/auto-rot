@@ -25,8 +25,9 @@ type Config struct {
 	TrustPositifKey string // optional: API key untuk trustpositif.id/api/v1
 	NawalaCheckKey  string // optional: API key untuk api.nawalacheck.com (Source 3)
 	// Klikcepat integration — optional
-	KlikcepatBaseURL string // dari KLIKCEPAT_BASE_URL
-	KlikcepatAPIKey  string // dari KLIKCEPAT_API_KEY
+	KlikcepatBaseURL       string // dari KLIKCEPAT_BASE_URL (untuk API calls, default klikcepat.com)
+	KlikcepatAPIKey        string // dari KLIKCEPAT_API_KEY
+	KlikcepatDisplayDomain string // dari KLIKCEPAT_DISPLAY_DOMAIN (untuk display URL, contoh: thymeband.com)
 	// ContactUsername: handle Telegram (tanpa @) yang ditampilin ke non-admin
 	// pas mereka coba DM bot. Default: "hokisetahun".
 	ContactUsername string
@@ -69,6 +70,11 @@ func Load() (*Config, error) {
 
 	klikcepatBaseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("KLIKCEPAT_BASE_URL")), "/")
 	klikcepatAPIKey := strings.TrimSpace(os.Getenv("KLIKCEPAT_API_KEY"))
+	klikcepatDisplayDomain := strings.TrimSpace(os.Getenv("KLIKCEPAT_DISPLAY_DOMAIN"))
+	// Normalize: strip http(s):// + trailing slash → just "thymeband.com"
+	klikcepatDisplayDomain = strings.TrimPrefix(klikcepatDisplayDomain, "https://")
+	klikcepatDisplayDomain = strings.TrimPrefix(klikcepatDisplayDomain, "http://")
+	klikcepatDisplayDomain = strings.TrimSuffix(klikcepatDisplayDomain, "/")
 
 	return &Config{
 		BotToken:        token,
@@ -82,7 +88,8 @@ func Load() (*Config, error) {
 		ContactUsername: contactUser,
 		BotUsername:     botUser,
 		KlikcepatBaseURL: klikcepatBaseURL,
-		KlikcepatAPIKey:  klikcepatAPIKey,
+		KlikcepatAPIKey:        klikcepatAPIKey,
+		KlikcepatDisplayDomain: klikcepatDisplayDomain,
 	}, nil
 }
 

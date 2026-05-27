@@ -20,6 +20,7 @@ func (h *Handler) handleSettingsKlikcepat(c tele.Context) error {
 	cred := h.creds.Get()
 	baseURL := cred.KlikcepatBaseURL
 	apiKey := cred.KlikcepatAPIKey
+	displayDomain := cred.KlikcepatDisplayDomain
 
 	statusURL := "❌ belum di-set"
 	if baseURL != "" {
@@ -29,13 +30,18 @@ func (h *Handler) handleSettingsKlikcepat(c tele.Context) error {
 	if apiKey != "" {
 		statusKey = "✅ `" + escapeMD(store.MaskAPIKey(apiKey)) + "`"
 	}
+	statusDomain := "klikcepat.com (default)"
+	if displayDomain != "" {
+		statusDomain = "✅ `" + escapeMD(displayDomain) + "`"
+	}
 
 	text := fmt.Sprintf(
 		"🔗 *Klikcepat Settings*\n\n"+
 			"🌐 *Base URL:* %s\n"+
-			"🔑 *API Key:* %s\n\n"+
-			"_Setup: enable API di plan klikcepat → normal admin generate API key → paste di sini._",
-		statusURL, statusKey,
+			"🔑 *API Key:* %s\n"+
+			"🏷 *Display Domain:* %s\n\n"+
+			"_Display Domain: untuk custom domain yang di-share dari master account (sub-user API gak see domain)._",
+		statusURL, statusKey, statusDomain,
 	)
 
 	m := &tele.ReplyMarkup{}
@@ -43,6 +49,9 @@ func (h *Handler) handleSettingsKlikcepat(c tele.Context) error {
 		m.Row(
 			m.Data("🌐 Set Base URL", cbSettingsKlikcepatSetURL),
 			m.Data("🔑 Set API Key", cbSettingsKlikcepatSetKey),
+		),
+		m.Row(
+			m.Data("🏷 Set Display Domain", cbSettingsKlikcepatSetDomain),
 		),
 		m.Row(
 			m.Data("✅ Test Koneksi", cbSettingsKlikcepatTest),
@@ -120,6 +129,48 @@ func (h *Handler) wizardSettingsKlikcepatKey(c tele.Context, sess *Session) erro
 	return h.reply(c,
 		fmt.Sprintf("✅ API Key tersimpan: `%s`\n\n_Pesan API key kamu sudah dihapus._",
 			escapeMD(store.MaskAPIKey(key))),
+		backToSettings(), tele.ModeMarkdown)
+}
+
+// handleSettingsKlikcepatSetDomain — set custom display domain (untuk kasus
+// custom domain di-share dari master account, sub-user API gak see domain list).
+func (h *Handler) handleSettingsKlikcepatSetDomain(c tele.Context) error {
+	h.cancelPriorPrompt(c, StepSettingsKlikcepatDomain)
+	prompt := "🌐 *Set Custom Display Domain*\n\n" +
+		"Ketik nama domain yang dipake untuk display short URL klikcepat kamu.\n\n" +
+		"*Contoh:*\n" +
+		"• `thymeband.com` (tanpa https://)\n" +
+		"• `klikcepat.vip`\n" +
+		"• `links.maha-domain.com`\n\n" +
+		"_Atau ketik `-` untuk hapus (back to klikcepat.com default)._\n\n" +
+		"💡 _Setting ini cuma untuk display di bot — gak ngubah klikcepat-side data._"
+	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
+	if msg == nil {
+		msg = c.Message()
+	}
+	h.sessions.Set(c.Sender().ID, &Session{
+		Step:      StepSettingsKlikcepatDomain,
+		Data:      make(map[string]string),
+		PromptMsg: msg,
+	})
+	return nil
+}
+
+func (h *Handler) wizardSettingsKlikcepatDomain(c tele.Context, sess *Session) error {
+	h.showTyping(c)
+	domain := strings.TrimSpace(c.Text())
+	if domain == "-" {
+		domain = ""
+	}
+	h.creds.SetKlikcepatDisplayDomain(domain)
+	h.sessions.Delete(c.Sender().ID)
+	if domain == "" {
+		return h.reply(c,
+			"✅ Custom display domain dihapus — bot kembali pakai `klikcepat.com` default.",
+			backToSettings(), tele.ModeMarkdown)
+	}
+	return h.reply(c,
+		fmt.Sprintf("✅ Display domain tersimpan: `%s`\n\nSemua link sekarang akan ditampilkan dengan domain ini di bot.", escapeMD(domain)),
 		backToSettings(), tele.ModeMarkdown)
 }
 

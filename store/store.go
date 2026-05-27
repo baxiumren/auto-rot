@@ -422,10 +422,11 @@ func (hs *HistoryStore) Clear() {
 // ─── Credentials (CF Email & API Key) ────────────────────────────────────────
 
 type Credentials struct {
-	CFEmail          string `json:"cf_email"`
-	CFAPIKey         string `json:"cf_api_key"`
-	KlikcepatBaseURL string `json:"klikcepat_base_url"`
-	KlikcepatAPIKey  string `json:"klikcepat_api_key"`
+	CFEmail                string `json:"cf_email"`
+	CFAPIKey               string `json:"cf_api_key"`
+	KlikcepatBaseURL       string `json:"klikcepat_base_url"`
+	KlikcepatAPIKey        string `json:"klikcepat_api_key"`
+	KlikcepatDisplayDomain string `json:"klikcepat_display_domain"` // custom display domain (e.g., thymeband.com)
 }
 
 type CredentialStore struct {
@@ -494,11 +495,23 @@ func (s *CredentialStore) SetKlikcepatAPIKey(key string) {
 	go s.save()
 }
 
+func (s *CredentialStore) SetKlikcepatDisplayDomain(domain string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d := strings.TrimSpace(domain)
+	d = strings.TrimPrefix(d, "https://")
+	d = strings.TrimPrefix(d, "http://")
+	d = strings.TrimSuffix(d, "/")
+	s.data.KlikcepatDisplayDomain = d
+	go s.save()
+}
+
 func (s *CredentialStore) ClearKlikcepat() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.data.KlikcepatBaseURL = ""
 	s.data.KlikcepatAPIKey = ""
+	s.data.KlikcepatDisplayDomain = ""
 	go s.save()
 }
 

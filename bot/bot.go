@@ -526,6 +526,8 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleSettingsKlikcepatSetURL(c)
 	case cbSettingsKlikcepatSetKey:
 		return h.handleSettingsKlikcepatSetKey(c)
+	case cbSettingsKlikcepatSetDomain:
+		return h.handleSettingsKlikcepatSetDomain(c)
 	case cbSettingsKlikcepatTest:
 		return h.handleSettingsKlikcepatTest(c)
 	case cbSettingsKlikcepatClear:
@@ -661,6 +663,8 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardSettingsKlikcepatURL(c, sess)
 	case StepSettingsKlikcepatKey:
 		return h.wizardSettingsKlikcepatKey(c, sess)
+	case StepSettingsKlikcepatDomain:
+		return h.wizardSettingsKlikcepatDomain(c, sess)
 
 	// Klikcepat Add Link wizard
 	case StepKlikcepatAddType, StepKlikcepatAddProject:
