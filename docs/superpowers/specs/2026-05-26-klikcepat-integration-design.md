@@ -163,17 +163,18 @@ KLIKCEPAT_API_KEY=<normal-admin-api-key>
 
 Klikcepat credentials bisa juga di-store di `data/credentials.json` (sama kayak CF), supaya bisa di-set via bot menu.
 
-### 5. Bot Menu (new sub-section)
+### 5. Bot Menu (REVISED — 5 button layout, unified Rotator hub)
 
-**Main menu (DM admin):**
+**Main menu (DM admin) — 5 button total:**
 ```
 🏠 MENU UTAMA
-├── 📡 Monitor
-├── ⚙️ CF Redirect
-├── 🔄 Auto Rotator (CF)
-├── 🔗 KLIKCEPAT          ← BARU
-└── 🔧 Settings
+[📡 Monitor]      [⚙️ CF Redirect]
+[🔄 Auto Rotator] [🔗 KLIKCEPAT]
+[🔧 Settings]
 ```
+
+`🔄 Auto Rotator` jadi **unified hub** untuk CF + Klikcepat auto-swap.
+`🔗 KLIKCEPAT` standalone untuk CRUD link/project (mirror `⚙️ CF Redirect`).
 
 **Sub-menu `🔗 KLIKCEPAT`:**
 ```
@@ -181,22 +182,76 @@ Klikcepat credentials bisa juga di-store di `data/credentials.json` (sama kayak 
 
 [➕ Tambah Link]   [📋 List Link]
 [✏️ Edit Link]    [🗑 Hapus Link]
-[🔄 Auto-Swap]    [⚙️ API Settings]
+[📁 Projects]     [🌐 Open Dashboard]
 [🔙 Kembali]
 ```
 
-**Wizard flows:**
+`📁 Projects` punya sub-menu CRUD project sendiri. Auto-Swap *tidak* di sini — di Auto Rotator.
+
+**Sub-menu `📁 Projects`:**
+```
+📁 KLIKCEPAT PROJECTS
+
+[➕ Tambah Project]  [📋 List Project]
+[✏️ Edit Project]   [🗑 Hapus Project]
+[🔙 Kembali]
+```
+
+**Sub-menu `🔄 Auto Rotator` (UNIFIED — CF + Klikcepat):**
+```
+🔄 AUTO ROTATOR — Setup Auto-Swap
+
+[➕ Setup Rotator]   [📦 Bulk Setup]
+[📋 List Rotator]    [📜 Swap History]
+[🔙 Kembali]
+```
+
+**Wizard `➕ Setup Rotator` (UNIFIED ENTRY):**
+
+Step 1 — Pilih tipe rotator:
+```
+🔄 Setup Rotator — Pilih Tipe
+
+[⚙️ CF Redirect]    [🔗 KLIKCEPAT]
+[❌ Batal]
+```
+
+- Klik `⚙️ CF Redirect` → flow existing (pick CF Rule → pool → label)
+- Klik `🔗 KLIKCEPAT` → flow baru (pick klikcepat link → pool → label)
+
+**Wizard `📋 List Rotator` (UNIFIED VIEW):**
+Tampilkan SEMUA rotator (CF + Klikcepat) grouped by type:
+```
+📋 ROTATOR LIST
+
+═══ ⚙️ CF Redirect ═══
+✅ MAHA66-ROT
+   🔧 Rule: MAHA66.ID
+   📂 Pool: STOCK-MS
+   [Toggle] [Delete] [Force]
+
+═══ 🔗 KLIKCEPAT ═══
+✅ PROMO-MAHA-ROT
+   🔗 Link: klikcepat.com/promo-maha
+   📂 Pool: MONEYSITE
+   [Toggle] [Delete] [Force]
+
+Total: 6 CF + 3 Klikcepat = 9 active rotators
+```
+
+**Wizard flows (CRUD link):**
 
 **A. Tambah Link (Add):**
 1. Pilih type (biolink/link/file/vcard/event/static) — inline buttons
 2. Input title (text)
 3. Input slug (text, auto-generate kalau kosong)
 4. Input location_url (text)
-5. Confirm → POST /api/links → success message
+5. (Opsional) Pilih project — picker dari /api/projects, atau "Skip"
+6. Confirm → POST /api/links → success message
 
 **B. Edit Link:**
 1. Pick link dari list (inline button per link, max 100 paginated)
-2. Pilih field yang mau di-edit (title / slug / location_url / is_enabled)
+2. Pilih field yang mau di-edit (title / slug / location_url / project / is_enabled)
 3. Input new value
 4. Confirm → POST /api/links/{id}
 
@@ -205,11 +260,29 @@ Klikcepat credentials bisa juga di-store di `data/credentials.json` (sama kayak 
 2. Confirmation dialog
 3. DELETE /api/links/{id}
 
-**D. Auto-Swap Setup (Rotator):**
-1. Pick klikcepat link (dari /api/links list)
-2. Pick pool label (dari Monitor labels)
-3. Input rotator label
-4. Save → KlikcepatRotatorStore.Add()
+**D. Project CRUD (mirror Link CRUD):**
+1. Tambah: input name + color (hex) → POST /api/projects
+2. List: GET /api/projects → tampilkan + count link per project
+3. Edit: pick → input new name/color → POST /api/projects/{id}
+4. Hapus: pick → confirmation → DELETE /api/projects/{id}
+
+**E. Auto-Swap Setup (UNIFIED di Auto Rotator menu, BUKAN di Klikcepat menu):**
+
+Dari `🔄 Auto Rotator → ➕ Setup Rotator`:
+
+Step 1 — User klik `🔗 KLIKCEPAT` (tipe rotator):
+
+Step 2 — Pick klikcepat link:
+- Bot fetch GET /api/links (filter by type: link/biolink)
+- Tampilkan inline button per link (pagination kalau >50)
+
+Step 3 — Pick pool label:
+- Dari h.domains.Labels() (Monitor pool)
+
+Step 4 — Input rotator label:
+- Free text identifier
+
+Step 5 — Save → KlikcepatRotatorStore.Add()
 
 ### 6. Auto-Swap Integration
 
@@ -325,20 +398,23 @@ Nampilin list klikcepat links (read-only) di group.
         📌 Type: Short URL"
 ```
 
-### Scenario 2: Setup auto-swap
+### Scenario 2: Setup auto-swap (UNIFIED via Auto Rotator)
 
 ```
-1. User: 🔗 KLIKCEPAT → 🔄 Auto-Swap → ➕ Setup Rotator
-2. Bot fetch list klikcepat links → tampilkan picker
-3. User pilih link "promo-maha"
-4. Bot tampilkan picker pool label (dari Monitor)
-5. User pilih "MONEYSITE"
-6. Bot: "Ketik label rotator:" → user "PROMO-MAHA-ROT"
-7. Save ke KlikcepatRotatorStore
-8. Bot: "✅ Rotator dibuat!
-        🔗 Link: klikcepat.com/promo-maha
-        📂 Pool: MONEYSITE
-        ✅ Active"
+1. User: 🔄 Auto Rotator → ➕ Setup Rotator
+2. Bot: "Pilih tipe rotator:" [⚙️ CF Redirect] [🔗 KLIKCEPAT]
+3. User klik [🔗 KLIKCEPAT]
+4. Bot fetch list klikcepat links → tampilkan picker
+5. User pilih link "promo-maha"
+6. Bot tampilkan picker pool label (dari Monitor)
+7. User pilih "MONEYSITE"
+8. Bot: "Ketik label rotator:" → user "PROMO-MAHA-ROT"
+9. Save ke KlikcepatRotatorStore
+10. Bot: "✅ Rotator dibuat!
+         Type: Klikcepat
+         🔗 Link: klikcepat.com/promo-maha
+         📂 Pool: MONEYSITE
+         ✅ Active"
 ```
 
 ### Scenario 3: Domain blocked → auto-swap
@@ -411,13 +487,18 @@ Karena fitur baru (gak modify existing), gak ada migration script. Rollout:
 
 ## Out of Scope (Future)
 
-- Biolink block-level swap (individual blocks inside biolink page) — butuh DB direct access
-- Analytics/statistics dari klikcepat
-- Bulk operations (bulk create, bulk swap)
-- Klikcepat domains management (custom domains via API)
-- QR code, splash pages, projects (other 66biolinks features)
-- Multi-account support (manage multiple normal admin accounts dalam 1 bot)
+- **Biolink block-level swap** (individual blocks/buttons inside biolink page) — 66biolinks SENGAJA gak expose API untuk blocks. Block management harus via dashboard klikcepat.com (web UI).
+- Analytics/statistics dari klikcepat (perlu /api/statistics, bisa di-add nanti)
+- Bulk operations (bulk create link / bulk delete)
+- Klikcepat custom domains management (perlu /api/domains)
+- QR code, splash pages (perlu /api/qr-codes, /api/splash-pages)
+- Multi-account support (manage multiple klikcepat user accounts dalam 1 bot)
 
 ## Open Questions
 
 (none — design approved by user)
+
+## Revision History
+
+- **2026-05-26 v1** — Initial design (separate Klikcepat menu dengan Auto-Swap di dalam)
+- **2026-05-26 v2** — Restructure: Auto-Swap dipindah ke `🔄 Auto Rotator` (unified hub CF+Klikcepat). `🔗 KLIKCEPAT` jadi fokus CRUD link/project doang. Menu utama 5 button (2x2 + Settings).
