@@ -42,7 +42,7 @@ func (h *Handler) handleSettingsKlikcepat(c tele.Context) error {
 			"🌐 *Base URL:* %s\n"+
 			"🔑 *API Key:* %s\n"+
 			"🏷 *Display Domain:* %s\n\n"+
-			"_Display Domain: untuk custom domain yang di-share dari master account (sub-user API gak see domain)._",
+			"Display Domain: untuk custom domain shared dari master account.",
 		statusURL, statusKey, statusDomain,
 	)
 
@@ -218,10 +218,10 @@ func (h *Handler) handleSettingsKlikcepatDomMap(c tele.Context) error {
 	mapping := h.creds.GetKlikcepatDomainMap()
 	var sb strings.Builder
 	sb.WriteString("🏷 *Domain Mappings*\n═══════════════════════════\n\n")
-	sb.WriteString("Map domain_id (dari klikcepat) → host (yang dipake di URL).\n")
-	sb.WriteString("Bot pake mapping ini untuk display URL link per-link accurate.\n\n")
+	sb.WriteString("Map `domain_id` (dari klikcepat) ke host URL.\n")
+	sb.WriteString("Bot pake mapping ini buat display URL link akurat.\n\n")
 	if len(mapping) == 0 {
-		sb.WriteString("_📭 Belum ada mapping._\n_Klik *➕ Tambah* untuk mulai._\n\n")
+		sb.WriteString("📭 Belum ada mapping.\nKlik *➕ Tambah* buat mulai.\n\n")
 	} else {
 		sb.WriteString("*Current mappings:*\n")
 		ids := make([]int, 0, len(mapping))
@@ -232,7 +232,7 @@ func (h *Handler) handleSettingsKlikcepatDomMap(c tele.Context) error {
 		for _, id := range ids {
 			sb.WriteString(fmt.Sprintf("• ID `%d` → `%s`\n", id, escapeMD(mapping[id])))
 		}
-		sb.WriteString("\n_(ID `0` = klikcepat.com default — gak perlu di-map.)_\n")
+		sb.WriteString("\nID `0` = klikcepat.com default — gak perlu di-map.\n")
 	}
 
 	m := &tele.ReplyMarkup{}
@@ -251,7 +251,7 @@ func (h *Handler) handleSettingsKlikcepatDomMapAdd(c tele.Context) error {
 	prompt := "➕ *Tambah Domain Mapping — Step 1/2*\n\n" +
 		"Ketik *domain ID* dari klikcepat (angka).\n\n" +
 		"*Contoh:* `2` (untuk klikcepat.vip)\n\n" +
-		"💡 _Cara tau ID:_ Liat di klikcepat admin panel → Domains → URL bar nampilin ID."
+		"💡 Cara tau ID: liat di klikcepat admin panel → Domains → URL bar nampilin ID."
 	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
 	if msg == nil {
 		msg = c.Message()
