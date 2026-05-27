@@ -303,7 +303,7 @@ func (h *Handler) wizardSettingsKlikcepatDomMapHost(c tele.Context, sess *Sessio
 	h.creds.SetKlikcepatDomainMapping(id, host)
 	h.sessions.Delete(c.Sender().ID)
 	return h.reply(c,
-		fmt.Sprintf("✅ *Mapping tersimpan!*\n\n• ID `%d` → `%s`\n\nDomain ini sekarang dipake untuk display semua link dengan domain_id=%d.", id, escapeMD(host), id),
+		fmt.Sprintf("✅ *Mapping tersimpan!*\n\n• ID `%d` → `%s`\n\nSemua link dengan `domain_id` = `%d` sekarang display dengan host ini.", id, escapeMD(host), id),
 		backToSettings(), tele.ModeMarkdown)
 }
 
