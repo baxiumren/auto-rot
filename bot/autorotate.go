@@ -227,6 +227,9 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 	var sb strings.Builder
 	sb.WriteString("📋 *Auto Rotator List*\n═══════════════════════════\n")
 
+	m := &tele.ReplyMarkup{}
+	var rows []tele.Row
+
 	if len(cfRotators) > 0 {
 		sb.WriteString("\n═══ ⚙️ CF Redirect ═══\n")
 		activeCF := 0
@@ -237,14 +240,21 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 				cfLabel = cfRule.Label
 			}
 			status := "▶️ AKTIF"
+			toggleIcon := "⏸ Pause"
 			if !rot.Active {
 				status = "⏸ PAUSE"
+				toggleIcon = "▶️ Resume"
 			} else {
 				activeCF++
 			}
 			sb.WriteString(fmt.Sprintf("%d. *%s* %s\n", i+1, escapeMD(rot.Label), status))
 			sb.WriteString(fmt.Sprintf("   ⚙️ CF: *%s*\n", escapeMD(cfLabel)))
 			sb.WriteString(fmt.Sprintf("   📂 Pool: *%s*\n", escapeMD(rot.PoolLabel)))
+			rows = append(rows, m.Row(
+				m.Data(fmt.Sprintf("⚙️ %s", truncate(rot.Label, 18)), cbNoop),
+				m.Data(toggleIcon, cbRotatorToggle, rot.ID),
+				m.Data("🗑 Hapus", cbRotatorDelete, rot.ID),
+			))
 		}
 		sb.WriteString(fmt.Sprintf("\n_%d CF rotator (%d aktif)_\n", len(cfRotators), activeCF))
 	}
@@ -254,8 +264,10 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 		activeKLC := 0
 		for i, rot := range klcRotators {
 			status := "▶️ AKTIF"
+			toggleIcon := "⏸ Pause"
 			if !rot.Active {
 				status = "⏸ PAUSE"
+				toggleIcon = "▶️ Resume"
 			} else {
 				activeKLC++
 			}
@@ -266,6 +278,11 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 			sb.WriteString(fmt.Sprintf("%d. *%s* %s\n", i+1, escapeMD(rot.Label), status))
 			sb.WriteString(fmt.Sprintf("   %s Link: `/%s`\n", typeIcon, escapeMD(rot.LinkURL)))
 			sb.WriteString(fmt.Sprintf("   📂 Pool: *%s*\n", escapeMD(rot.PoolLabel)))
+			rows = append(rows, m.Row(
+				m.Data(fmt.Sprintf("%s %s", typeIcon, truncate(rot.Label, 18)), cbNoop),
+				m.Data(toggleIcon, cbKlikcepatRotToggle, rot.ID),
+				m.Data("🗑 Hapus", cbKlikcepatRotDelete, rot.ID),
+			))
 		}
 		sb.WriteString(fmt.Sprintf("\n_%d Klikcepat rotator (%d aktif)_\n", len(klcRotators), activeKLC))
 	}
@@ -284,8 +301,8 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 	sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d CF + %d Klikcepat = %d rotator (%d aktif)",
 		len(cfRotators), len(klcRotators), len(cfRotators)+len(klcRotators), totalActive))
 
-	m := &tele.ReplyMarkup{}
-	m.Inline(m.Row(m.Data("🔙 Kembali", cbRotator)))
+	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbRotator)))
+	m.Inline(rows...)
 	return c.Edit(sb.String(), m, tele.ModeMarkdown)
 }
 

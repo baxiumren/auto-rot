@@ -423,6 +423,10 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleRotatorDelete(c)
 	case cbRotatorForce:
 		return h.handleRotatorForce(c)
+	case cbKlikcepatRotToggle:
+		return h.handleKlikcepatRotToggle(c)
+	case cbKlikcepatRotDelete:
+		return h.handleKlikcepatRotDelete(c)
 
 	// Bulk Setup Rotator
 	case cbRotatorBulk:

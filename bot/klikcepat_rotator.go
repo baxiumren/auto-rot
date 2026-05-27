@@ -195,6 +195,33 @@ func (h *Handler) handleKlikcepatRotPickPool(c tele.Context) error {
 	return nil
 }
 
+// handleKlikcepatRotToggle — pause/resume klikcepat rotator from List Rotator.
+func (h *Handler) handleKlikcepatRotToggle(c tele.Context) error {
+	rotID := extractParam(c)
+	active, found := h.klikcepatRotators.Toggle(rotID)
+	if !found {
+		return c.Respond(&tele.CallbackResponse{Text: "❌ Rotator gak ketemu", ShowAlert: true})
+	}
+	state := "▶️ AKTIF"
+	if !active {
+		state = "⏸ PAUSE"
+	}
+	c.Respond(&tele.CallbackResponse{Text: fmt.Sprintf("Rotator → %s", state)})
+	return h.handleRotatorList(c)
+}
+
+// handleKlikcepatRotDelete — hapus klikcepat rotator from List Rotator.
+func (h *Handler) handleKlikcepatRotDelete(c tele.Context) error {
+	rotID := extractParam(c)
+	rot, ok := h.klikcepatRotators.GetByID(rotID)
+	if !ok {
+		return c.Respond(&tele.CallbackResponse{Text: "❌ Rotator gak ketemu", ShowAlert: true})
+	}
+	h.klikcepatRotators.Delete(rotID)
+	c.Respond(&tele.CallbackResponse{Text: fmt.Sprintf("🗑 %s dihapus", rot.Label)})
+	return h.handleRotatorList(c)
+}
+
 func (h *Handler) wizardKlikcepatRotatorAddLabel(c tele.Context, sess *Session) error {
 	h.showTyping(c)
 	label := strings.ToUpper(strings.TrimSpace(c.Text()))
