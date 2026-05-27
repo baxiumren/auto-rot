@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"bongbot/klikcepat"
 	tele "gopkg.in/telebot.v3"
 )
 
@@ -233,22 +234,73 @@ func (h *Handler) handleKlikcepatList(c tele.Context) error {
 			ShowAlert: true,
 		})
 	}
-	pageStr := extractParam(c)
-	if pageStr == "" {
-		pageStr = "0"
-	}
-	page, _ := strconv.Atoi(pageStr)
 
-	c.Edit("⏳ Loading links dari klikcepat...", tele.ModeMarkdown)
-	links, err := h.klikcepat.ListLinks("")
+	// Parse param: empty = show type picker; "biolink|0" / "link|2" = filtered list
+	param := extractParam(c)
+	if param == "" {
+		// Show type picker
+		return h.renderKlikcepatListTypePicker(c)
+	}
+
+	parts := strings.SplitN(param, "|", 2)
+	linkType := parts[0]
+	page := 0
+	if len(parts) > 1 {
+		page, _ = strconv.Atoi(parts[1])
+	}
+	if linkType != "biolink" && linkType != "link" {
+		// Invalid type → back to type picker
+		return h.renderKlikcepatListTypePicker(c)
+	}
+	return h.renderKlikcepatListByType(c, linkType, page)
+}
+
+// renderKlikcepatListTypePicker — first screen: pick Biolink vs Shortlink.
+func (h *Handler) renderKlikcepatListTypePicker(c tele.Context) error {
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("📄 BIOLINK", cbKlikcepatList, "biolink|0"),
+			m.Data("🔗 SHORTLINK", cbKlikcepatList, "link|0"),
+		),
+		m.Row(m.Data("❌ Batal", cbKlikcepat)),
+	)
+	return c.Edit(
+		"📋 *List Link — Pilih Kategori*\n\n"+
+			"Pilih tipe link yang mau dilihat:\n\n"+
+			"• 📄 *BIOLINK* — landing page bio (kayak Linktree)\n"+
+			"• 🔗 *SHORTLINK* — URL pendek redirect ke target",
+		m, tele.ModeMarkdown)
+}
+
+// renderKlikcepatListByType — paginated list filtered by type (link / biolink).
+func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, page int) error {
+	c.Edit("⏳ Loading links...", tele.ModeMarkdown)
+	links, err := h.klikcepat.ListLinks(linkType)
 	if err != nil {
 		return c.Edit(
 			fmt.Sprintf("❌ Gagal fetch links:\n```\n%s\n```", escapeMD(err.Error())),
 			backToKlikcepat(), tele.ModeMarkdown)
 	}
+	// Defensive: filter again in case API returns mixed
+	var filtered []klikcepat.Link
+	for _, l := range links {
+		if l.Type == linkType {
+			filtered = append(filtered, l)
+		}
+	}
+	links = filtered
+
+	typeLabel := "SHORTLINK"
+	typeIconHeader := "🔗"
+	if linkType == "biolink" {
+		typeLabel = "BIOLINK"
+		typeIconHeader = "📄"
+	}
+
 	if len(links) == 0 {
 		return c.Edit(
-			"📭 *Belum ada link di klikcepat.*\n\nKlik *➕ Tambah Link* untuk mulai.",
+			fmt.Sprintf("📭 *Belum ada %s di klikcepat.*\n\nKlik *➕ Tambah Link* untuk mulai (pilih tipe %s saat wizard).", typeLabel, typeLabel),
 			backToKlikcepat(), tele.ModeMarkdown)
 	}
 
@@ -267,27 +319,15 @@ func (h *Handler) handleKlikcepatList(c tele.Context) error {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📋 *List Link Klikcepat* — page %d/%d (total %d)\n═══════════════════════════\n\n", page+1, totalPages, total))
+	sb.WriteString(fmt.Sprintf("%s *List %s* — page %d/%d (total %d)\n═══════════════════════════\n\n",
+		typeIconHeader, typeLabel, page+1, totalPages, total))
 	for i := start; i < end; i++ {
 		l := links[i]
-		typeIcon := "🔗"
-		switch l.Type {
-		case "biolink":
-			typeIcon = "📄"
-		case "vcard":
-			typeIcon = "📇"
-		case "event":
-			typeIcon = "📅"
-		case "file":
-			typeIcon = "📁"
-		case "static":
-			typeIcon = "📌"
-		}
 		enabled := "✅"
 		if l.IsEnabled == 0 {
 			enabled = "⛔"
 		}
-		sb.WriteString(fmt.Sprintf("%s *%s* (`/%s`) %s\n", typeIcon, escapeMD(l.Title), escapeMD(l.URL), enabled))
+		sb.WriteString(fmt.Sprintf("%s *%s* (`/%s`) %s\n", typeIconHeader, escapeMD(l.Title), escapeMD(l.URL), enabled))
 		if l.LocationURL != "" {
 			sb.WriteString(fmt.Sprintf("   🎯 `%s`\n", escapeMD(l.LocationURL)))
 		}
@@ -297,13 +337,17 @@ func (h *Handler) handleKlikcepatList(c tele.Context) error {
 	m := &tele.ReplyMarkup{}
 	var navRow tele.Row
 	if page > 0 {
-		navRow = append(navRow, m.Data("⬅️ Prev", cbKlikcepatList, strconv.Itoa(page-1)))
+		navRow = append(navRow, m.Data("⬅️ Prev", cbKlikcepatList, fmt.Sprintf("%s|%d", linkType, page-1)))
 	}
 	navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
 	if page < totalPages-1 {
-		navRow = append(navRow, m.Data("Next ➡️", cbKlikcepatList, strconv.Itoa(page+1)))
+		navRow = append(navRow, m.Data("Next ➡️", cbKlikcepatList, fmt.Sprintf("%s|%d", linkType, page+1)))
 	}
-	rows := []tele.Row{navRow, m.Row(m.Data("🔙 Kembali", cbKlikcepat))}
+	rows := []tele.Row{
+		navRow,
+		m.Row(m.Data("🔄 Ganti Kategori", cbKlikcepatList)),
+		m.Row(m.Data("🔙 Kembali", cbKlikcepat)),
+	}
 	m.Inline(rows...)
 
 	return c.Edit(sb.String(), m, tele.ModeMarkdown)

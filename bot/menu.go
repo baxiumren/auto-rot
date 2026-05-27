@@ -350,7 +350,7 @@ func klikcepatMenu(botUsername string) *tele.ReplyMarkup {
 	rows := []tele.Row{
 		m.Row(
 			m.Data("➕ Tambah Link", cbKlikcepatAdd),
-			m.Data("📋 List Link", cbKlikcepatList, "0"),
+			m.Data("📋 List Link", cbKlikcepatList),
 		),
 		m.Row(
 			m.Data("✏️ Edit Link", cbKlikcepatEdit),
