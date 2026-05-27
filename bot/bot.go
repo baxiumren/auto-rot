@@ -417,6 +417,20 @@ func (h *Handler) handleCallback(c tele.Context) error {
 	// Bulk Setup Rotator
 	case cbRotatorBulk:
 		return h.handleRotatorBulk(c)
+	case cbRotatorBulkTypeCF:
+		return h.handleRotatorBulkTypeCF(c)
+	case cbRotatorBulkTypeKlikcepat:
+		return h.handleRotatorBulkTypeKlikcepat(c)
+	case cbKlikcepatRotBulkToggle:
+		return h.handleKlikcepatRotBulkToggle(c)
+	case cbKlikcepatRotBulkSelAll:
+		return h.handleKlikcepatRotBulkSelectAll(c, true)
+	case cbKlikcepatRotBulkSelNone:
+		return h.handleKlikcepatRotBulkSelectAll(c, false)
+	case cbKlikcepatRotBulkProceed:
+		return h.handleKlikcepatRotBulkProceed(c)
+	case cbKlikcepatRotBulkPickPool:
+		return h.handleKlikcepatRotBulkPickPool(c)
 	case cbRotatorBulkToggle:
 		return h.handleRotatorBulkToggle(c)
 	case cbRotatorBulkSelAll:
@@ -613,6 +627,10 @@ func (h *Handler) handleText(c tele.Context) error {
 		return nil // callback-only
 	case StepKlikcepatRotatorAddLabel:
 		return h.wizardKlikcepatRotatorAddLabel(c, sess)
+
+	// Klikcepat Bulk Setup Rotator
+	case StepKlikcepatRotBulkPick, StepKlikcepatRotBulkPool:
+		return nil // callback-only
 
 	// Global search
 	case StepGlobalSearch:

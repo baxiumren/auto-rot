@@ -140,6 +140,15 @@ const (
 	cbKlikcepatRotToggle   = "klc_rot_toggle"   // param = rotator ID
 	cbKlikcepatRotDelete   = "klc_rot_delete"   // param = rotator ID
 	cbKlikcepatRotForce    = "klc_rot_force"    // param = rotator ID
+
+	// Bulk Setup Rotator — pick type (CF or Klikcepat) then bulk picker
+	cbRotatorBulkTypeCF        = "rotator_bulk_cf"
+	cbRotatorBulkTypeKlikcepat = "rotator_bulk_klc"
+	cbKlikcepatRotBulkToggle   = "klc_bulk_tg"      // param = link ID
+	cbKlikcepatRotBulkSelAll   = "klc_bulk_all"
+	cbKlikcepatRotBulkSelNone  = "klc_bulk_none"
+	cbKlikcepatRotBulkProceed  = "klc_bulk_proceed"
+	cbKlikcepatRotBulkPickPool = "klc_bulk_pool"    // param = pool label
 )
 
 // ─── Menu Texts ───────────────────────────────────────────────────────────────

@@ -73,6 +73,10 @@ const (
 	StepKlikcepatRotatorPickLink Step = "klikcepat_rot_picklink"
 	StepKlikcepatRotatorPickPool Step = "klikcepat_rot_pickpool"
 	StepKlikcepatRotatorAddLabel Step = "klikcepat_rot_label"
+
+	// Klikcepat Bulk Setup
+	StepKlikcepatRotBulkPick Step = "klc_bulk_pick"
+	StepKlikcepatRotBulkPool Step = "klc_bulk_pool"
 )
 
 type Session struct {

@@ -21,7 +21,26 @@ import (
 
 const rotatorBulkSelKey = "selected" // session.Data key, value = "ruleID1,ruleID2,..."
 
+// handleRotatorBulk — unified entry: pick type (CF / Klikcepat) before bulk picker.
 func (h *Handler) handleRotatorBulk(c tele.Context) error {
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("⚙️ CF Redirect", cbRotatorBulkTypeCF),
+			m.Data("🔗 KLIKCEPAT", cbRotatorBulkTypeKlikcepat),
+		),
+		m.Row(m.Data("❌ Batal", cbCancel)),
+	)
+	return c.Edit(
+		"📦 *Bulk Setup Rotator — Pilih Tipe*\n\n"+
+			"Pilih platform mana yang mau di-bulk-setup auto-swap-nya:\n\n"+
+			"• *⚙️ CF Redirect* — bulk-assign CF rules ke 1 pool\n"+
+			"• *🔗 KLIKCEPAT* — bulk-assign klikcepat links ke 1 pool",
+		m, tele.ModeMarkdown)
+}
+
+// handleRotatorBulkTypeCF — original CF bulk entry (was handleRotatorBulk before unification).
+func (h *Handler) handleRotatorBulkTypeCF(c tele.Context) error {
 	allRules := h.cfrules.GetAll()
 	if len(allRules) == 0 {
 		return c.Edit(
@@ -70,7 +89,7 @@ func (h *Handler) handleRotatorBulkToggle(c tele.Context) error {
 	}
 	sess, ok := h.sessions.Get(c.Sender().ID)
 	if !ok || sess.Step != StepRotatorBulkPick {
-		return h.handleRotatorBulk(c)
+		return h.handleRotatorBulkTypeCF(c)
 	}
 
 	selected := parseSelected(sess.Data[rotatorBulkSelKey])
@@ -92,7 +111,7 @@ func (h *Handler) handleRotatorBulkToggle(c tele.Context) error {
 func (h *Handler) handleRotatorBulkSelectAll(c tele.Context, selectAll bool) error {
 	sess, ok := h.sessions.Get(c.Sender().ID)
 	if !ok || sess.Step != StepRotatorBulkPick {
-		return h.handleRotatorBulk(c)
+		return h.handleRotatorBulkTypeCF(c)
 	}
 	rules, totalAll := h.filteredCFRules()
 	selected := map[string]bool{}
@@ -130,7 +149,7 @@ func (h *Handler) filteredCFRules() (filtered []store.CFRule, totalAll int) {
 func (h *Handler) handleRotatorBulkProceed(c tele.Context) error {
 	sess, ok := h.sessions.Get(c.Sender().ID)
 	if !ok || sess.Step != StepRotatorBulkPick {
-		return h.handleRotatorBulk(c)
+		return h.handleRotatorBulkTypeCF(c)
 	}
 	selected := parseSelected(sess.Data[rotatorBulkSelKey])
 	if len(selected) == 0 {
@@ -190,11 +209,11 @@ func (h *Handler) handleRotatorBulkProceed(c tele.Context) error {
 func (h *Handler) handleRotatorBulkPickPool(c tele.Context) error {
 	poolLabel := extractParam(c)
 	if poolLabel == "" {
-		return h.handleRotatorBulk(c)
+		return h.handleRotatorBulkTypeCF(c)
 	}
 	sess, ok := h.sessions.Get(c.Sender().ID)
 	if !ok || sess.Step != StepRotatorBulkPool {
-		return h.handleRotatorBulk(c)
+		return h.handleRotatorBulkTypeCF(c)
 	}
 
 	selected := parseSelected(sess.Data[rotatorBulkSelKey])
