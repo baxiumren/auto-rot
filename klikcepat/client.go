@@ -34,10 +34,16 @@ func (c *Client) SetCredentials(baseURL, apiKey string) {
 	c.apiKey = apiKey
 }
 
+// defaultBaseURL — fallback kalau user cuma set API key tanpa Base URL.
+// Most users pakai klikcepat.com, jadi auto-default ini hemat 1 setup step.
+const defaultBaseURL = "https://klikcepat.com"
+
+// HasCredentials true kalau apiKey ada. baseURL bisa default ke defaultBaseURL
+// kalau user gak set manual.
 func (c *Client) HasCredentials() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.baseURL != "" && c.apiKey != ""
+	return c.apiKey != ""
 }
 
 // Ping verifies credentials by calling /api/user endpoint.
@@ -52,8 +58,12 @@ func (c *Client) do(method, path string, body interface{}) ([]byte, error) {
 	c.mu.RLock()
 	base, key := c.baseURL, c.apiKey
 	c.mu.RUnlock()
-	if base == "" || key == "" {
-		return nil, fmt.Errorf("klikcepat credentials belum di-set")
+	if key == "" {
+		return nil, fmt.Errorf("klikcepat API key belum di-set")
+	}
+	// Auto-fallback ke default base URL kalau user gak set
+	if base == "" {
+		base = defaultBaseURL
 	}
 	var bodyReader io.Reader
 	contentType := ""
