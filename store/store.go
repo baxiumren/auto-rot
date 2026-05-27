@@ -422,8 +422,10 @@ func (hs *HistoryStore) Clear() {
 // ─── Credentials (CF Email & API Key) ────────────────────────────────────────
 
 type Credentials struct {
-	CFEmail  string `json:"cf_email"`
-	CFAPIKey string `json:"cf_api_key"`
+	CFEmail          string `json:"cf_email"`
+	CFAPIKey         string `json:"cf_api_key"`
+	KlikcepatBaseURL string `json:"klikcepat_base_url"`
+	KlikcepatAPIKey  string `json:"klikcepat_api_key"`
 }
 
 type CredentialStore struct {
@@ -475,6 +477,28 @@ func (s *CredentialStore) Set(email, apiKey string) {
 	s.data.CFEmail = strings.TrimSpace(email)
 	s.data.CFAPIKey = strings.TrimSpace(apiKey)
 	s.mu.Unlock()
+	go s.save()
+}
+
+func (s *CredentialStore) SetKlikcepatBaseURL(url string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.KlikcepatBaseURL = strings.TrimRight(strings.TrimSpace(url), "/")
+	go s.save()
+}
+
+func (s *CredentialStore) SetKlikcepatAPIKey(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.KlikcepatAPIKey = strings.TrimSpace(key)
+	go s.save()
+}
+
+func (s *CredentialStore) ClearKlikcepat() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.KlikcepatBaseURL = ""
+	s.data.KlikcepatAPIKey = ""
 	go s.save()
 }
 
