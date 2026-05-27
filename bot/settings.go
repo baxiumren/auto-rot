@@ -28,7 +28,7 @@ func (h *Handler) handleSettings(c tele.Context) error {
 			"⚙️ *Cloudflare* — %s\n"+
 			"_Untuk auto-rotate redirect rule kamu._\n\n"+
 			"🔗 *Klikcepat* — %s\n"+
-			"_Untuk auto-rotate location_url biolink / shortlink kamu._\n\n"+
+			"_Untuk auto-rotate target URL biolink / shortlink kamu._\n\n"+
 			"━━━━━━━━━━━━━━━━━━\n"+
 			"Pilih platform yang mau di-configure:",
 		cfStatus, klcStatus,

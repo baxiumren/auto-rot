@@ -28,7 +28,7 @@ func (h *Handler) handleRotatorAdd(c tele.Context) error {
 		"🔄 *Setup Rotator — Pilih Tipe*\n\n"+
 			"Pilih platform mana yang mau di-setup auto-swap-nya:\n\n"+
 			"• *⚙️ CF Redirect* — auto-swap target URL Cloudflare rule\n"+
-			"• *🔗 KLIKCEPAT* — auto-swap location_url link klikcepat",
+			"• *🔗 KLIKCEPAT* — auto-swap `location_url` link klikcepat",
 		m, tele.ModeMarkdown)
 }
 
