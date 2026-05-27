@@ -361,10 +361,6 @@ func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, pag
 
 		sb.WriteString(fmt.Sprintf("%s *%s* %s\n", typeIconHeader, escapeMD(title), enabled))
 		sb.WriteString(fmt.Sprintf("   🌐 `%s`\n", escapeMD(fullURL)))
-		if linkType == "link" && l.LocationURL != "" {
-			// Shortlink: show target redirect (relevant for auto-swap)
-			sb.WriteString(fmt.Sprintf("   🎯 → `%s`\n", escapeMD(l.LocationURL)))
-		}
 		sb.WriteString(fmt.Sprintf("   🆔 `%d`\n\n", int(l.ID)))
 	}
 
