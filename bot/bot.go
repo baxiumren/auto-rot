@@ -431,6 +431,12 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleKlikcepatAddPickProject(c)
 	case cbKlikcepatList:
 		return h.handleKlikcepatList(c)
+	case cbKlikcepatEdit:
+		return h.handleKlikcepatEdit(c)
+	case cbKlikcepatEditPick:
+		return h.handleKlikcepatEditPick(c)
+	case cbKlikcepatEditField:
+		return h.handleKlikcepatEditField(c)
 
 	// Health Dashboard & History
 	case cbHistory:
@@ -598,6 +604,12 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardKlikcepatAddSlug(c, sess)
 	case StepKlikcepatAddLocationURL:
 		return h.wizardKlikcepatAddLocation(c, sess)
+
+	// Klikcepat Edit Link wizard
+	case StepKlikcepatEditPickField:
+		return nil // callback-only
+	case StepKlikcepatEditValue:
+		return h.wizardKlikcepatEditValue(c, sess)
 	}
 
 	return nil

@@ -308,3 +308,131 @@ func (h *Handler) handleKlikcepatList(c tele.Context) error {
 
 	return c.Edit(sb.String(), m, tele.ModeMarkdown)
 }
+
+// ─── Edit Link wizard ────────────────────────────────────────────────────────
+
+func (h *Handler) handleKlikcepatEdit(c tele.Context) error {
+	if !h.klikcepat.HasCredentials() {
+		return c.Respond(&tele.CallbackResponse{
+			Text:      "⚠️ Setup credentials dulu",
+			ShowAlert: true,
+		})
+	}
+	c.Edit("⏳ Loading links...", tele.ModeMarkdown)
+	links, err := h.klikcepat.ListLinks("")
+	if err != nil {
+		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
+			backToKlikcepat(), tele.ModeMarkdown)
+	}
+	if len(links) == 0 {
+		return c.Edit("📭 Belum ada link.", backToKlikcepat(), tele.ModeMarkdown)
+	}
+
+	m := &tele.ReplyMarkup{}
+	var rows []tele.Row
+	for _, l := range links {
+		if len(rows) >= 30 {
+			break // simple cap — pagination not yet implemented for edit picker
+		}
+		rows = append(rows, m.Row(m.Data(
+			fmt.Sprintf("✏️ %s (/%s)", truncate(l.Title, 30), l.URL),
+			cbKlikcepatEditPick, strconv.Itoa(l.ID))))
+	}
+	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbKlikcepat)))
+	m.Inline(rows...)
+
+	return c.Edit("✏️ *Edit Link — Pilih link yang mau di-edit:*", m, tele.ModeMarkdown)
+}
+
+func (h *Handler) handleKlikcepatEditPick(c tele.Context) error {
+	linkIDStr := extractParam(c)
+	linkID, _ := strconv.Atoi(linkIDStr)
+	if linkID <= 0 {
+		return h.handleKlikcepatEdit(c)
+	}
+	link, err := h.klikcepat.GetLink(linkID)
+	if err != nil {
+		return c.Edit(fmt.Sprintf("❌ Gagal fetch link:\n```\n%s\n```", escapeMD(err.Error())),
+			backToKlikcepat(), tele.ModeMarkdown)
+	}
+
+	h.sessions.Set(c.Sender().ID, &Session{
+		Step:      StepKlikcepatEditPickField,
+		Data:      map[string]string{"link_id": linkIDStr},
+		PromptMsg: c.Message(),
+	})
+
+	prompt := fmt.Sprintf(
+		"✏️ *Edit Link*\n\n"+
+			"📛 Title: *%s*\n"+
+			"🔗 Slug: `%s`\n"+
+			"🎯 Target: `%s`\n"+
+			"📌 Type: *%s*\n\n"+
+			"Pilih field yang mau di-edit:",
+		escapeMD(link.Title), escapeMD(link.URL), escapeMD(link.LocationURL), link.Type)
+
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("📛 Title", cbKlikcepatEditField, "title"),
+			m.Data("🔗 Slug", cbKlikcepatEditField, "url"),
+		),
+		m.Row(
+			m.Data("🎯 Location URL", cbKlikcepatEditField, "location_url"),
+		),
+		m.Row(m.Data("❌ Batal", cbCancel)),
+	)
+	return c.Edit(prompt, m, tele.ModeMarkdown)
+}
+
+func (h *Handler) handleKlikcepatEditField(c tele.Context) error {
+	field := extractParam(c)
+	sess, ok := h.sessions.Get(c.Sender().ID)
+	if !ok || sess.Step != StepKlikcepatEditPickField {
+		return c.Respond(&tele.CallbackResponse{Text: "⚠️ Session expired", ShowAlert: true})
+	}
+	sess.Data["field"] = field
+	sess.Step = StepKlikcepatEditValue
+	h.sessions.Set(c.Sender().ID, sess)
+
+	prompt := fmt.Sprintf("✏️ Ketik nilai baru untuk *%s*:", field)
+	h.bot.Edit(sess.PromptMsg, prompt, cancelMenu(), tele.ModeMarkdown)
+	return nil
+}
+
+func (h *Handler) wizardKlikcepatEditValue(c tele.Context, sess *Session) error {
+	h.showTyping(c)
+	val := strings.TrimSpace(c.Text())
+	if val == "" {
+		return h.reply(c, "❌ Nilai kosong, coba lagi:", cancelMenu())
+	}
+	linkID, _ := strconv.Atoi(sess.Data["link_id"])
+	field := sess.Data["field"]
+	h.sessions.Delete(c.Sender().ID)
+
+	if field == "location_url" {
+		if !strings.HasPrefix(val, "http://") && !strings.HasPrefix(val, "https://") {
+			val = "https://" + val
+		}
+	}
+
+	loadingMsg, _ := h.bot.Send(c.Chat(), "⏳ Updating link...", tele.ModeMarkdown)
+
+	_, err := h.klikcepat.UpdateLink(linkID, map[string]string{field: val})
+	if err != nil {
+		errText := fmt.Sprintf("❌ *Update gagal*\n\n```\n%s\n```", escapeMD(err.Error()))
+		if loadingMsg != nil {
+			h.bot.Edit(loadingMsg, errText, backToKlikcepat(), tele.ModeMarkdown)
+			return nil
+		}
+		return h.reply(c, errText, backToKlikcepat(), tele.ModeMarkdown)
+	}
+
+	successText := fmt.Sprintf("✅ Link ID `%d` updated!\nField *%s* = `%s`",
+		linkID, field, escapeMD(val))
+	if loadingMsg != nil {
+		h.bot.Edit(loadingMsg, successText, backToKlikcepat(), tele.ModeMarkdown)
+		return nil
+	}
+	return h.reply(c, successText, backToKlikcepat(), tele.ModeMarkdown)
+}
