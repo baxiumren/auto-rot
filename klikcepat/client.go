@@ -116,8 +116,21 @@ func (c *Client) do(method, path string, body interface{}) ([]byte, error) {
 
 // ─── Links API ────────────────────────────────────────────────────────────────
 
-// ListLinks fetches all user's links. Optional filter by type ("link", "biolink", etc.)
-// Empty linkType returns all types.
+// unmarshalLink parses a single-link {"data": {...}} response.
+func unmarshalLink(data []byte) (*Link, error) {
+	var resp struct {
+		Data Link `json:"data"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("parse link: %w", err)
+	}
+	return &resp.Data, nil
+}
+
+// ListLinks fetches user's links (up to a 1000 hard cap). Optional filter by type
+// ("link", "biolink", etc.) Empty linkType returns all types.
+// Note: hardcoded results_per_page=1000 — links beyond that count are silently
+// truncated. Future enhancement: paginate.
 func (c *Client) ListLinks(linkType string) ([]Link, error) {
 	path := "/api/links?results_per_page=1000"
 	if linkType != "" {
@@ -137,17 +150,14 @@ func (c *Client) ListLinks(linkType string) ([]Link, error) {
 }
 
 func (c *Client) GetLink(id int) (*Link, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("klikcepat: invalid link id %d", id)
+	}
 	data, err := c.do(http.MethodGet, fmt.Sprintf("/api/links/%d", id), nil)
 	if err != nil {
 		return nil, err
 	}
-	var resp struct {
-		Data Link `json:"data"`
-	}
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, err
-	}
-	return &resp.Data, nil
+	return unmarshalLink(data)
 }
 
 // CreateLink creates a new link.
@@ -155,6 +165,12 @@ func (c *Client) GetLink(id int) (*Link, error) {
 // slug: custom slug (empty = klikcepat auto-generate)
 // projectID: 0 = no project, >0 = assign to project
 func (c *Client) CreateLink(linkType, title, slug, locationURL string, projectID int) (*Link, error) {
+	if linkType == "" {
+		return nil, fmt.Errorf("klikcepat: linkType required")
+	}
+	if locationURL == "" {
+		return nil, fmt.Errorf("klikcepat: locationURL required")
+	}
 	form := url.Values{}
 	form.Set("type", linkType)
 	form.Set("title", title)
@@ -169,19 +185,19 @@ func (c *Client) CreateLink(linkType, title, slug, locationURL string, projectID
 	if err != nil {
 		return nil, err
 	}
-	var resp struct {
-		Data Link `json:"data"`
-	}
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, err
-	}
-	return &resp.Data, nil
+	return unmarshalLink(data)
 }
 
 // UpdateLink updates fields of an existing link.
 // Pass key-value pairs for fields to update (e.g., "title", "url", "location_url", "is_enabled").
 // Use UpdateLinkLocation for swap-only operations (more efficient).
 func (c *Client) UpdateLink(id int, fields map[string]string) (*Link, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("klikcepat: invalid link id %d", id)
+	}
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("klikcepat: no fields to update")
+	}
 	form := url.Values{}
 	for k, v := range fields {
 		form.Set(k, v)
@@ -190,18 +206,15 @@ func (c *Client) UpdateLink(id int, fields map[string]string) (*Link, error) {
 	if err != nil {
 		return nil, err
 	}
-	var resp struct {
-		Data Link `json:"data"`
-	}
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, err
-	}
-	return &resp.Data, nil
+	return unmarshalLink(data)
 }
 
 // UpdateLinkLocation is the primary swap method — updates location_url only.
 // Lightweight: doesn't fetch full Link response, just verifies success.
 func (c *Client) UpdateLinkLocation(id int, locationURL string) error {
+	if id <= 0 {
+		return fmt.Errorf("klikcepat: invalid link id %d", id)
+	}
 	form := url.Values{}
 	form.Set("location_url", locationURL)
 	_, err := c.do(http.MethodPost, fmt.Sprintf("/api/links/%d", id), form)
@@ -209,6 +222,9 @@ func (c *Client) UpdateLinkLocation(id int, locationURL string) error {
 }
 
 func (c *Client) DeleteLink(id int) error {
+	if id <= 0 {
+		return fmt.Errorf("klikcepat: invalid link id %d", id)
+	}
 	_, err := c.do(http.MethodDelete, fmt.Sprintf("/api/links/%d", id), nil)
 	return err
 }
