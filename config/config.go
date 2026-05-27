@@ -10,9 +10,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Version — semver versioning untuk bot.
-// Update tiap release significant (lihat CHANGELOG.md untuk history).
-const Version = "1.0.0"
+// Version — release versioning untuk bot.
+// Scheme: v1.0 → v1.1 → v1.2 → ... → v1.9 → v2.0 (naik major pas mau "double digit").
+// Update tiap release (lihat CHANGELOG.md untuk history).
+const Version = "1.0"
 
 type Config struct {
 	BotToken        string

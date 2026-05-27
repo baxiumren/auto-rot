@@ -1,10 +1,24 @@
 # 📜 CHANGELOG
 
-Semua perubahan significant di BONG BOT. Format mengikuti [Keep a Changelog](https://keepachangelog.com/) + [Semantic Versioning](https://semver.org/).
+Semua perubahan significant di BONG BOT.
+
+## 🗓 Versioning Scheme
+
+Custom simple scheme (bukan strict SemVer):
+
+```
+v1.0 → v1.1 → v1.2 → v1.3 → ... → v1.9 → v2.0 → v2.1 → ...
+                                          ↑
+                       Naik major pas mau "double digit"
+```
+
+- **Minor bump** (`v1.X`): Setiap release significant — fitur baru / refactor / bug fix gede
+- **Major bump** (`v2.0`, `v3.0`): Setelah v1.9 (atau emang ada breaking changes yg massive)
+- **Patch** (skip): Gak pake third digit — too noisy
 
 ---
 
-## 🎰 v1.0.0 — "ALL IN ONE" Release (2026-05-27)
+## 🎰 v1.0 — "ALL IN ONE" Initial Release (2026-05-27)
 
 **Production-ready milestone.** Bot udah feature-complete untuk auto-rotate CF + Klikcepat dengan multi-source nawala check.
 
@@ -54,7 +68,7 @@ Semua perubahan significant di BONG BOT. Format mengikuti [Keep a Changelog](htt
 
 ---
 
-## 🏗 v0.3.0 — Group Mode + Rotating Batch (2026-05-26)
+## 🏗 v0.3 — Group Mode + Rotating Batch (2026-05-26, pre-release)
 
 ### Added
 - **Group + DM dual mode** — group untuk alert, DM untuk wizard
@@ -70,7 +84,7 @@ Semua perubahan significant di BONG BOT. Format mengikuti [Keep a Changelog](htt
 
 ---
 
-## 🛡 v0.2.0 — Multi-Source Nawala Check (2026-05-26)
+## 🛡 v0.2 — Multi-Source Nawala Check (2026-05-26, pre-release)
 
 ### Added
 - **Triple-source check** — Kominfo + TrustPositif API + NawalaCheck
@@ -83,7 +97,7 @@ Semua perubahan significant di BONG BOT. Format mengikuti [Keep a Changelog](htt
 
 ---
 
-## 🎬 v0.1.0 — Initial Production Release (earlier)
+## 🎬 v0.1 — Initial Production Release (earlier, pre-release)
 
 ### Added
 - Monitor Scanner (24/7 background)
@@ -101,14 +115,6 @@ Semua perubahan significant di BONG BOT. Format mengikuti [Keep a Changelog](htt
 
 ---
 
-## 🗓 Versioning Strategy
-
-Kita pakai [Semantic Versioning](https://semver.org/):
-
-- **MAJOR** (X.0.0) — breaking changes (perlu migration manual)
-- **MINOR** (1.X.0) — fitur baru (backward compatible)
-- **PATCH** (1.0.X) — bug fixes & small improvements
-
 ## 🔗 Git Tags
 
 ```bash
@@ -116,8 +122,16 @@ Kita pakai [Semantic Versioning](https://semver.org/):
 git tag -l
 
 # Checkout version tertentu
-git checkout v1.0.0
+git checkout v1.0
 
 # Lihat diff antar version
-git diff v0.3.0..v1.0.0
+git diff v0.3..v1.0
 ```
+
+## 🎯 Next Release Roadmap
+
+- **v1.1** — TBD (custom API biolink blocks? bulk delete? analytics? user pick)
+- **v1.2** — ...
+- ...
+- **v1.9** — last of v1.x series
+- **v2.0** — next major leap
