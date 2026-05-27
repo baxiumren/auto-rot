@@ -155,6 +155,7 @@ const (
 	cbKlikcepatRotBulkSelNone  = "klc_bulk_none"
 	cbKlikcepatRotBulkProceed  = "klc_bulk_proceed"
 	cbKlikcepatRotBulkPickPool = "klc_bulk_pool"    // param = pool label
+	cbKlikcepatRotBulkPage     = "klc_bulk_page"    // param = page index
 )
 
 // ─── Menu Texts ───────────────────────────────────────────────────────────────

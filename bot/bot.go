@@ -445,6 +445,8 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleKlikcepatRotBulkProceed(c)
 	case cbKlikcepatRotBulkPickPool:
 		return h.handleKlikcepatRotBulkPickPool(c)
+	case cbKlikcepatRotBulkPage:
+		return h.handleKlikcepatRotBulkPage(c)
 	case cbRotatorBulkToggle:
 		return h.handleRotatorBulkToggle(c)
 	case cbRotatorBulkSelAll:

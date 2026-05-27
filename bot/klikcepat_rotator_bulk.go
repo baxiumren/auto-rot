@@ -20,6 +20,8 @@ import (
 // 5. User pilih 1 pool → save rotator config untuk SEMUA selected link
 
 const klikcepatBulkSelKey = "klc_selected" // session.Data key
+const klikcepatBulkPageKey = "klc_page"    // session.Data key (current page)
+const klikcepatBulkPerPage = 10            // links per page
 
 // klikcepatBulkPick is a row in the bulk picker (subset of klikcepat.Link).
 type klikcepatBulkPick struct {
@@ -58,12 +60,13 @@ func (h *Handler) handleRotatorBulkTypeKlikcepat(c tele.Context) error {
 	h.sessions.Set(c.Sender().ID, &Session{
 		Step: StepKlikcepatRotBulkPick,
 		Data: map[string]string{
-			klikcepatBulkSelKey: "",
-			"available":         strings.Join(linkIDsStr, ","),
+			klikcepatBulkSelKey:  "",
+			klikcepatBulkPageKey: "0",
+			"available":          strings.Join(linkIDsStr, ","),
 		},
 	})
 
-	return h.renderKlikcepatBulkPicker(c, picks, map[int]bool{})
+	return h.renderKlikcepatBulkPicker(c, picks, map[int]bool{}, 0)
 }
 
 // fetchKlikcepatBulkPicks fetches links and filters out those that:
@@ -96,20 +99,43 @@ func (h *Handler) fetchKlikcepatBulkPicks() ([]klikcepatBulkPick, error) {
 	return picks, nil
 }
 
-// renderKlikcepatBulkPicker renders the checkbox picker view.
-func (h *Handler) renderKlikcepatBulkPicker(c tele.Context, picks []klikcepatBulkPick, selected map[int]bool) error {
+// renderKlikcepatBulkPicker renders the checkbox picker view with pagination.
+func (h *Handler) renderKlikcepatBulkPicker(c tele.Context, picks []klikcepatBulkPick, selected map[int]bool, page int) error {
+	total := len(picks)
+	totalPages := (total + klikcepatBulkPerPage - 1) / klikcepatBulkPerPage
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	if page >= totalPages {
+		page = totalPages - 1
+	}
+	if page < 0 {
+		page = 0
+	}
+	start := page * klikcepatBulkPerPage
+	end := start + klikcepatBulkPerPage
+	if end > total {
+		end = total
+	}
+
 	var sb strings.Builder
 	sb.WriteString("📦 *Bulk Setup Klikcepat Rotator — Pilih Links*\n═══════════════════════════\n\n")
-	sb.WriteString(fmt.Sprintf("📊 *Dipilih:* %d / %d link\n\n", len(selected), len(picks)))
+	sb.WriteString(fmt.Sprintf("📊 *Dipilih:* %d / %d link • Page %d/%d\n\n", len(selected), total, page+1, totalPages))
 	if len(selected) > 0 {
 		sb.WriteString("━━━━━━━━━━━━━━━━━━\n*Link yang dipilih:*\n")
+		shown := 0
 		for _, p := range picks {
 			if selected[p.ID] {
 				typeIcon := "🔗"
 				if p.Type == "biolink" {
 					typeIcon = "📄"
 				}
-				sb.WriteString(fmt.Sprintf("✅ %s *%s* (`/%s`)\n", typeIcon, escapeMD(p.Title), escapeMD(p.URL)))
+				sb.WriteString(fmt.Sprintf("✅ %s `/%s`\n", typeIcon, escapeMD(strings.ToUpper(p.URL))))
+				shown++
+				if shown >= 15 {
+					sb.WriteString(fmt.Sprintf("_...dan %d lainnya_\n", len(selected)-shown))
+					break
+				}
 			}
 		}
 		sb.WriteString("\n💡 _Klik *Lanjut* untuk pilih pool._")
@@ -119,7 +145,8 @@ func (h *Handler) renderKlikcepatBulkPicker(c tele.Context, picks []klikcepatBul
 
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
-	for _, p := range picks {
+	for i := start; i < end; i++ {
+		p := picks[i]
 		check := "☐"
 		if selected[p.ID] {
 			check = "☑"
@@ -128,14 +155,28 @@ func (h *Handler) renderKlikcepatBulkPicker(c tele.Context, picks []klikcepatBul
 		if p.Type == "biolink" {
 			typeIcon = "📄"
 		}
-		btnText := fmt.Sprintf("%s %s %s (/%s)", check, typeIcon, truncate(p.Title, 20), p.URL)
-		rows = append(rows, m.Row(m.Data(truncate(btnText, 60), cbKlikcepatRotBulkToggle, strconv.Itoa(int(p.ID)))))
-		if len(rows) >= 30 {
-			break
+		label := strings.ToUpper(p.URL)
+		if label == "" {
+			label = "(no slug)"
 		}
+		btnText := fmt.Sprintf("%s %s %s", check, typeIcon, truncate(label, 40))
+		rows = append(rows, m.Row(m.Data(btnText, cbKlikcepatRotBulkToggle, strconv.Itoa(p.ID))))
 	}
 
-	allSelected := len(selected) == len(picks) && len(picks) > 0
+	// Pagination row
+	if totalPages > 1 {
+		var navRow tele.Row
+		if page > 0 {
+			navRow = append(navRow, m.Data("⬅️ Prev", cbKlikcepatRotBulkPage, strconv.Itoa(page-1)))
+		}
+		navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
+		if page < totalPages-1 {
+			navRow = append(navRow, m.Data("Next ➡️", cbKlikcepatRotBulkPage, strconv.Itoa(page+1)))
+		}
+		rows = append(rows, navRow)
+	}
+
+	allSelected := len(selected) == total && total > 0
 	if allSelected {
 		rows = append(rows, m.Row(m.Data("☐ Hapus Semua", cbKlikcepatRotBulkSelNone)))
 	} else {
@@ -178,7 +219,27 @@ func (h *Handler) handleKlikcepatRotBulkToggle(c tele.Context) error {
 		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
 			backToRotator(), tele.ModeMarkdown)
 	}
-	return h.renderKlikcepatBulkPicker(c, picks, selected)
+	page, _ := strconv.Atoi(sess.Data[klikcepatBulkPageKey])
+	return h.renderKlikcepatBulkPicker(c, picks, selected, page)
+}
+
+// handleKlikcepatRotBulkPage — navigasi halaman Prev/Next di picker
+func (h *Handler) handleKlikcepatRotBulkPage(c tele.Context) error {
+	pageStr := extractParam(c)
+	page, _ := strconv.Atoi(pageStr)
+	sess, ok := h.sessions.Get(c.Sender().ID)
+	if !ok || sess.Step != StepKlikcepatRotBulkPick {
+		return h.handleRotatorBulkTypeKlikcepat(c)
+	}
+	sess.Data[klikcepatBulkPageKey] = strconv.Itoa(page)
+	h.sessions.Set(c.Sender().ID, sess)
+	picks, err := h.fetchKlikcepatBulkPicks()
+	if err != nil {
+		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
+			backToRotator(), tele.ModeMarkdown)
+	}
+	selected := parseSelectedInts(sess.Data[klikcepatBulkSelKey])
+	return h.renderKlikcepatBulkPicker(c, picks, selected, page)
 }
 
 func (h *Handler) handleKlikcepatRotBulkSelectAll(c tele.Context, selectAll bool) error {
@@ -199,7 +260,8 @@ func (h *Handler) handleKlikcepatRotBulkSelectAll(c tele.Context, selectAll bool
 	}
 	sess.Data[klikcepatBulkSelKey] = serializeSelectedInts(selected)
 	h.sessions.Set(c.Sender().ID, sess)
-	return h.renderKlikcepatBulkPicker(c, picks, selected)
+	page, _ := strconv.Atoi(sess.Data[klikcepatBulkPageKey])
+	return h.renderKlikcepatBulkPicker(c, picks, selected, page)
 }
 
 func (h *Handler) handleKlikcepatRotBulkProceed(c tele.Context) error {
