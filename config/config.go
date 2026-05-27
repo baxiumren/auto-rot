@@ -24,7 +24,7 @@ type Config struct {
 	CheckInterval   time.Duration
 	TrustPositifKey string // optional: API key untuk trustpositif.id/api/v1
 	NawalaCheckKey  string // optional: API key untuk api.nawalacheck.com (Source 3)
-	// Klikcepat (66biolinks) integration — optional
+	// Klikcepat integration — optional
 	KlikcepatBaseURL string // dari KLIKCEPAT_BASE_URL
 	KlikcepatAPIKey  string // dari KLIKCEPAT_API_KEY
 	// ContactUsername: handle Telegram (tanpa @) yang ditampilin ke non-admin

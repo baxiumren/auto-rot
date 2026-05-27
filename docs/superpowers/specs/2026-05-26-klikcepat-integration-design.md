@@ -8,7 +8,7 @@
 
 User punya 2 sistem domain protection:
 1. **CF Redirect Rules** — existing, sudah ada di bot (auto-swap on nawala block)
-2. **Klikcepat.com** — bio link / short URL platform (66biolinks by AltumCode)
+2. **Klikcepat.com** — bio link / short URL platform (Klikcepat platform)
 
 Klikcepat punya link-link (biolink pages, short URLs) yang `location_url` (target redirect) bisa kena nawala block. Saat ini user harus manual update link target via klikcepat dashboard.
 
@@ -18,7 +18,7 @@ Klikcepat punya link-link (biolink pages, short URLs) yang `location_url` (targe
 
 ## Constraints & Discoveries
 
-### 66biolinks API Architecture
+### klikcepat API Architecture
 
 - **Auth:** Bearer token in `Authorization` header
 - **Base URL:** `https://klikcepat.com/api/`
@@ -487,7 +487,7 @@ Karena fitur baru (gak modify existing), gak ada migration script. Rollout:
 
 ## Out of Scope (Future)
 
-- **Biolink block-level swap** (individual blocks/buttons inside biolink page) — 66biolinks SENGAJA gak expose API untuk blocks. Block management harus via dashboard klikcepat.com (web UI).
+- **Biolink block-level swap** (individual blocks/buttons inside biolink page) — klikcepat SENGAJA gak expose API untuk blocks. Block management harus via dashboard klikcepat.com (web UI).
 - Analytics/statistics dari klikcepat (perlu /api/statistics, bisa di-add nanti)
 - Bulk operations (bulk create link / bulk delete)
 - Klikcepat custom domains management (perlu /api/domains)

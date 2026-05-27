@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Integrate klikcepat.com (66biolinks) ke BongBot: CRUD link & project via Telegram + auto-swap location_url ketika domain blocked, semua via unified Auto Rotator menu.
+**Goal:** Integrate klikcepat.com (klikcepat) ke BongBot: CRUD link & project via Telegram + auto-swap location_url ketika domain blocked, semua via unified Auto Rotator menu.
 
 **Architecture:**
 - New `klikcepat/` package mirror pattern `cloudflare/` (HTTP client + types)
@@ -12,7 +12,7 @@
 - `KLIKCEPAT` menu fokus CRUD link/project (auto-swap setup di Auto Rotator)
 - Extend `monitor_scanner.go` triggerAutoSwap untuk scan klikcepat rotators
 
-**Tech Stack:** Go 1.21+, gopkg.in/telebot.v3, 66biolinks REST API (Bearer token auth)
+**Tech Stack:** Go 1.21+, gopkg.in/telebot.v3, klikcepat REST API (Bearer token auth)
 
 **Reference:** Design spec — `docs/superpowers/specs/2026-05-26-klikcepat-integration-design.md`
 
@@ -565,7 +565,7 @@ git commit -m "test(klikcepat): unit tests for HTTP client"
 Edit `config/config.go`. Add to `Config` struct after `NawalaCheckKey`:
 
 ```go
-	// Klikcepat (66biolinks) integration — optional
+	// Klikcepat (klikcepat) integration — optional
 	KlikcepatBaseURL string // dari KLIKCEPAT_BASE_URL
 	KlikcepatAPIKey  string // dari KLIKCEPAT_API_KEY
 ```
@@ -629,7 +629,7 @@ Append to `.env.example`:
 
 ```env
 
-# ─── Optional: KLIKCEPAT (66biolinks) Integration ─────────────────────────
+# ─── Optional: KLIKCEPAT (klikcepat) Integration ─────────────────────────
 # Bot bisa CRUD link/project + auto-swap location_url ketika domain blocked
 # Setup: enable API di plan klikcepat → normal admin generate API key
 # Atau set via menu Settings → 🔗 Klikcepat di bot
@@ -1124,7 +1124,7 @@ In `bot/bot.go`, find the `switch unique {` in `handleCallback`. Add case (after
 In `main.go`, after `cf := cloudflare.New(...)`, add:
 
 ```go
-	// Klikcepat (66biolinks) integration — credentials prioritas: credentials.json > .env
+	// Klikcepat (klikcepat) integration — credentials prioritas: credentials.json > .env
 	klcBaseURL := cfg.KlikcepatBaseURL
 	klcAPIKey := cfg.KlikcepatAPIKey
 	if cred := creds.Get(); cred.KlikcepatBaseURL != "" || cred.KlikcepatAPIKey != "" {
@@ -2932,7 +2932,7 @@ Append to `deploy/DEPLOY.md`:
 
 ## 🔗 KLIKCEPAT Integration (Optional)
 
-Bot bisa integrate dengan klikcepat.com (66biolinks) untuk auto-swap link.
+Bot bisa integrate dengan klikcepat.com (klikcepat) untuk auto-swap link.
 
 ### Setup
 

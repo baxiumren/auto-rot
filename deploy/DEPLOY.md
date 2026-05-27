@@ -256,7 +256,7 @@ sudo systemctl enable --now bongbot-2
 
 ## 🔗 KLIKCEPAT Integration (Optional)
 
-Bot bisa integrate dengan klikcepat.com (66biolinks) untuk:
+Bot bisa integrate dengan klikcepat.com untuk:
 - CRUD link & project via Telegram bot
 - Auto-swap `location_url` ketika domain target kena nawala (parallel ke CF Rotator)
 
@@ -314,7 +314,7 @@ Notif group:
 
 ### Limitasi Saat Ini
 
-- **Biolink blocks** (button2 inside biolink page) gak bisa di-CRUD via bot — 66biolinks gak expose API untuknya. Manage via klikcepat dashboard web.
+- **Biolink blocks** (button2 inside biolink page) gak bisa di-CRUD via bot — klikcepat platform gak expose API untuknya. Manage via klikcepat dashboard web.
 - API hard cap: 1000 link per fetch. Kalau lu punya >1000 link, perlu pagination support (future enhancement).
 - Klikcepat rotators belum punya toggle/delete UI di bot (List view aja). Future enhancement.
 

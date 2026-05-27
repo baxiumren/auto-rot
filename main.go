@@ -49,7 +49,7 @@ func main() {
 	}
 	cf := cloudflare.New(cfEmail, cfKey)
 
-	// Klikcepat (66biolinks) integration — credentials prioritas: credentials.json > .env
+	// Klikcepat integration — credentials prioritas: credentials.json > .env
 	klcBaseURL := cfg.KlikcepatBaseURL
 	klcAPIKey := cfg.KlikcepatAPIKey
 	if cred := creds.Get(); cred.KlikcepatBaseURL != "" || cred.KlikcepatAPIKey != "" {

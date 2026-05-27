@@ -6,7 +6,7 @@ import (
 )
 
 // FlexInt is an int that accepts both JSON number ("123" → 123) and JSON int (123).
-// Klikcepat (66biolinks PHP backend) sometimes returns int fields as strings due to
+// Klikcepat PHP backend sometimes returns int fields as strings due to
 // PHP MySQL fetch_object() default behavior.
 type FlexInt int
 

@@ -298,13 +298,12 @@ Built with ❤️ + ☕ + 🤖 Claude AI.
 - Go 1.21+ (binary kecil, cepet)
 - `gopkg.in/telebot.v3` (Telegram bot framework)
 - Cloudflare API v4
-- 66biolinks (klikcepat platform) REST API
+- Klikcepat platform REST API
 - TrustPositif Kominfo Rest_server endpoint
 - systemd (Linux service management)
 
 **Special thanks:**
 - Pejuang affiliate Indonesia yang gak nyerah sama nawala 🇮🇩
-- Owner script linkbio AltumCode (66biolinks)
 - Open source community
 
 ---
