@@ -343,15 +343,34 @@ func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, pag
 		}
 	}
 
-	// Diagnostic: log first link's DomainID to verify matching
+	// Diagnostic: log domain_id frequency per link type
+	// (helps user identify which domain IDs are in use)
 	if len(links) > 0 {
-		first := links[0]
-		matched := "NO-MATCH"
-		if d, ok := domainMap[int(first.DomainID)]; ok {
-			matched = fmt.Sprintf("MATCHED host=%s", d.Host)
+		userMap := h.creds.GetKlikcepatDomainMap()
+		domainIDCount := make(map[int]int)
+		for _, l := range links {
+			domainIDCount[int(l.DomainID)]++
 		}
-		log.Printf("[KLC-LIST] First link sample: ID=%d Slug=%q DomainID=%d → %s",
-			int(first.ID), first.URL, int(first.DomainID), matched)
+		log.Printf("[KLC-LIST] %s — DomainID frequency: %v (userMap size: %d)",
+			linkType, domainIDCount, len(userMap))
+		// Log first 5 links detail
+		maxSample := 5
+		if len(links) < maxSample {
+			maxSample = len(links)
+		}
+		for i := 0; i < maxSample; i++ {
+			l := links[i]
+			lookupResult := "no-match"
+			if host, ok := userMap[int(l.DomainID)]; ok {
+				lookupResult = "userMap=" + host
+			} else if d, ok := domainMap[int(l.DomainID)]; ok {
+				lookupResult = "apiMap=" + d.Host
+			} else if int(l.DomainID) == 0 {
+				lookupResult = "klikcepat.com (default)"
+			}
+			log.Printf("[KLC-LIST]   #%d Slug=%q DomainID=%d → %s",
+				i+1, l.URL, int(l.DomainID), lookupResult)
+		}
 	}
 
 	typeLabel := "SHORTLINK"
