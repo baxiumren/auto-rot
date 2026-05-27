@@ -123,8 +123,26 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
         journalctl -u "$SERVICE_NAME" -n 15 --no-pager
         echo "────────────────────────────────────────────────────────────────"
         echo ""
+        # ─── BONG BOT READY Banner ──────────────────────────────────────────
+        echo -e "\033[1;32m"
+        cat <<'BANNER'
+
+██████╗  ██████╗ ███╗   ██╗ ██████╗     ██████╗  ██████╗ ████████╗
+██╔══██╗██╔═══██╗████╗  ██║██╔════╝     ██╔══██╗██╔═══██╗╚══██╔══╝
+██████╔╝██║   ██║██╔██╗ ██║██║  ███╗    ██████╔╝██║   ██║   ██║
+██╔══██╗██║   ██║██║╚██╗██║██║   ██║    ██╔══██╗██║   ██║   ██║
+██████╔╝╚██████╔╝██║ ╚████║╚██████╔╝    ██████╔╝╚██████╔╝   ██║
+╚═════╝  ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝     ╚═════╝  ╚═════╝    ╚═╝
+
+         🎰  R E A D Y  🚀   —   A L L   I N   O N E   🔥
+
+BANNER
+        echo -e "\033[0m"
         echo "🔍 Tail real-time log:"
         echo "   sudo journalctl -u $SERVICE_NAME -f"
+        echo ""
+        echo "📋 Status:"
+        echo "   sudo systemctl status $SERVICE_NAME"
         echo ""
         exit 0
     else
