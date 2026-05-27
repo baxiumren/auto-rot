@@ -221,3 +221,90 @@ func (h *Handler) doKlikcepatAddCreate(c tele.Context, sess *Session, projectID 
 	}
 	return h.reply(c, successText, backToKlikcepat(), tele.ModeMarkdown)
 }
+
+// ─── List Link (paginated) ───────────────────────────────────────────────────
+
+const klikcepatLinksPerPage = 10
+
+func (h *Handler) handleKlikcepatList(c tele.Context) error {
+	if !h.klikcepat.HasCredentials() {
+		return c.Respond(&tele.CallbackResponse{
+			Text:      "⚠️ Setup credentials dulu via 🔧 Settings → 🔗 Klikcepat",
+			ShowAlert: true,
+		})
+	}
+	pageStr := extractParam(c)
+	if pageStr == "" {
+		pageStr = "0"
+	}
+	page, _ := strconv.Atoi(pageStr)
+
+	c.Edit("⏳ Loading links dari klikcepat...", tele.ModeMarkdown)
+	links, err := h.klikcepat.ListLinks("")
+	if err != nil {
+		return c.Edit(
+			fmt.Sprintf("❌ Gagal fetch links:\n```\n%s\n```", escapeMD(err.Error())),
+			backToKlikcepat(), tele.ModeMarkdown)
+	}
+	if len(links) == 0 {
+		return c.Edit(
+			"📭 *Belum ada link di klikcepat.*\n\nKlik *➕ Tambah Link* untuk mulai.",
+			backToKlikcepat(), tele.ModeMarkdown)
+	}
+
+	total := len(links)
+	totalPages := (total + klikcepatLinksPerPage - 1) / klikcepatLinksPerPage
+	if page >= totalPages {
+		page = totalPages - 1
+	}
+	if page < 0 {
+		page = 0
+	}
+	start := page * klikcepatLinksPerPage
+	end := start + klikcepatLinksPerPage
+	if end > total {
+		end = total
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("📋 *List Link Klikcepat* — page %d/%d (total %d)\n═══════════════════════════\n\n", page+1, totalPages, total))
+	for i := start; i < end; i++ {
+		l := links[i]
+		typeIcon := "🔗"
+		switch l.Type {
+		case "biolink":
+			typeIcon = "📄"
+		case "vcard":
+			typeIcon = "📇"
+		case "event":
+			typeIcon = "📅"
+		case "file":
+			typeIcon = "📁"
+		case "static":
+			typeIcon = "📌"
+		}
+		enabled := "✅"
+		if l.IsEnabled == 0 {
+			enabled = "⛔"
+		}
+		sb.WriteString(fmt.Sprintf("%s *%s* (`/%s`) %s\n", typeIcon, escapeMD(l.Title), escapeMD(l.URL), enabled))
+		if l.LocationURL != "" {
+			sb.WriteString(fmt.Sprintf("   🎯 `%s`\n", escapeMD(l.LocationURL)))
+		}
+		sb.WriteString(fmt.Sprintf("   🆔 `%d`\n\n", l.ID))
+	}
+
+	m := &tele.ReplyMarkup{}
+	var navRow tele.Row
+	if page > 0 {
+		navRow = append(navRow, m.Data("⬅️ Prev", cbKlikcepatList, strconv.Itoa(page-1)))
+	}
+	navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
+	if page < totalPages-1 {
+		navRow = append(navRow, m.Data("Next ➡️", cbKlikcepatList, strconv.Itoa(page+1)))
+	}
+	rows := []tele.Row{navRow, m.Row(m.Data("🔙 Kembali", cbKlikcepat))}
+	m.Inline(rows...)
+
+	return c.Edit(sb.String(), m, tele.ModeMarkdown)
+}

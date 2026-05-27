@@ -429,6 +429,8 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleKlikcepatAddType(c)
 	case cbKlikcepatAddPickProject:
 		return h.handleKlikcepatAddPickProject(c)
+	case cbKlikcepatList:
+		return h.handleKlikcepatList(c)
 
 	// Health Dashboard & History
 	case cbHistory:
