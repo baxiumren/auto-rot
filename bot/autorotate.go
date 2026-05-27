@@ -14,7 +14,26 @@ func (h *Handler) handleRotator(c tele.Context) error {
 
 // ─── Setup Rotator ────────────────────────────────────────────────────────────
 
+// handleRotatorAdd — unified entry: pick type (CF / Klikcepat) before existing flow.
 func (h *Handler) handleRotatorAdd(c tele.Context) error {
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("⚙️ CF Redirect", cbRotatorAddTypeCF),
+			m.Data("🔗 KLIKCEPAT", cbRotatorAddTypeKlikcepat),
+		),
+		m.Row(m.Data("❌ Batal", cbCancel)),
+	)
+	return c.Edit(
+		"🔄 *Setup Rotator — Pilih Tipe*\n\n"+
+			"Pilih platform mana yang mau di-setup auto-swap-nya:\n\n"+
+			"• *⚙️ CF Redirect* — auto-swap target URL Cloudflare rule\n"+
+			"• *🔗 KLIKCEPAT* — auto-swap location_url link klikcepat",
+		m, tele.ModeMarkdown)
+}
+
+// handleRotatorAddTypeCF — original CF rotator flow (was handleRotatorAdd before unification).
+func (h *Handler) handleRotatorAddTypeCF(c tele.Context) error {
 	allRules := h.cfrules.GetAll()
 	if len(allRules) == 0 {
 		return c.Edit(

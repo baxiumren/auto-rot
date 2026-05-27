@@ -393,6 +393,14 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleRotator(c)
 	case cbRotatorAdd:
 		return h.handleRotatorAdd(c)
+	case cbRotatorAddTypeCF:
+		return h.handleRotatorAddTypeCF(c)
+	case cbRotatorAddTypeKlikcepat:
+		return h.handleRotatorAddTypeKlikcepat(c)
+	case cbKlikcepatRotPickLink:
+		return h.handleKlikcepatRotPickLink(c)
+	case cbKlikcepatRotPickPool:
+		return h.handleKlikcepatRotPickPool(c)
 	case cbRotatorCFSel:
 		return h.handleRotatorCFSelect(c)
 	case cbRotatorPool:
@@ -599,6 +607,12 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardRotatorAddLabel(c, sess)
 	case StepRotatorBulkPick, StepRotatorBulkPool:
 		return nil // handled via callback button
+
+	// Klikcepat Rotator
+	case StepKlikcepatRotatorPickLink, StepKlikcepatRotatorPickPool:
+		return nil // callback-only
+	case StepKlikcepatRotatorAddLabel:
+		return h.wizardKlikcepatRotatorAddLabel(c, sess)
 
 	// Global search
 	case StepGlobalSearch:
