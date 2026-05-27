@@ -15,13 +15,24 @@ import (
 // Called from Auto Rotator → Setup Rotator → 🔗 KLIKCEPAT type.
 // Flow: pick link → pick pool → input label → save to KlikcepatRotatorStore.
 
-// handleRotatorAddTypeKlikcepat — entry from Auto Rotator menu after user picks "KLIKCEPAT"
+const klikcepatRotatorPerPage = 10
+
+// handleRotatorAddTypeKlikcepat — entry from Auto Rotator menu after user picks "KLIKCEPAT".
+// Param: page index (default 0).
 func (h *Handler) handleRotatorAddTypeKlikcepat(c tele.Context) error {
 	if !h.klikcepat.HasCredentials() {
 		return c.Edit(
 			"⚠️ *Klikcepat credentials belum di-set*\n\nSet dulu via *🔧 Settings → 🔗 Klikcepat*.",
 			backToRotator(), tele.ModeMarkdown)
 	}
+
+	// Parse page param
+	pageStr := extractParam(c)
+	page := 0
+	if pageStr != "" {
+		page, _ = strconv.Atoi(pageStr)
+	}
+
 	c.Edit("⏳ Loading links dari klikcepat...", tele.ModeMarkdown)
 	links, err := h.klikcepat.ListLinks("")
 	if err != nil {
@@ -57,26 +68,57 @@ func (h *Handler) handleRotatorAddTypeKlikcepat(c tele.Context) error {
 			backToRotator(), tele.ModeMarkdown)
 	}
 
+	// Pagination
+	total := len(picks)
+	totalPages := (total + klikcepatRotatorPerPage - 1) / klikcepatRotatorPerPage
+	if page >= totalPages {
+		page = totalPages - 1
+	}
+	if page < 0 {
+		page = 0
+	}
+	start := page * klikcepatRotatorPerPage
+	end := start + klikcepatRotatorPerPage
+	if end > total {
+		end = total
+	}
+
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
-	for _, p := range picks {
-		if len(rows) >= 30 {
-			break
-		}
+	for i := start; i < end; i++ {
+		p := picks[i]
 		typeIcon := "🔗"
 		if p.Type == "biolink" {
 			typeIcon = "📄"
 		}
+		// Label: TYPE_ICON + UPPERCASE_SLUG (same as List Link display)
+		label := strings.ToUpper(p.URL)
+		if label == "" {
+			label = "(no slug)"
+		}
 		rows = append(rows, m.Row(m.Data(
-			fmt.Sprintf("%s %s (/%s)", typeIcon, truncate(p.Title, 30), p.URL),
-			cbKlikcepatRotPickLink, strconv.Itoa(int(p.ID)))))
+			fmt.Sprintf("%s %s", typeIcon, truncate(label, 40)),
+			cbKlikcepatRotPickLink, strconv.Itoa(p.ID))))
 	}
+
+	// Pagination row
+	var navRow tele.Row
+	if page > 0 {
+		navRow = append(navRow, m.Data("⬅️ Prev", cbRotatorAddTypeKlikcepat, strconv.Itoa(page-1)))
+	}
+	navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
+	if page < totalPages-1 {
+		navRow = append(navRow, m.Data("Next ➡️", cbRotatorAddTypeKlikcepat, strconv.Itoa(page+1)))
+	}
+	rows = append(rows, navRow)
 	rows = append(rows, m.Row(m.Data("❌ Batal", cbCancel)))
 	m.Inline(rows...)
 
-	return c.Edit(
-		"🔄 *Setup Klikcepat Rotator — Step 1/3: Pick Link*",
-		m, tele.ModeMarkdown)
+	text := fmt.Sprintf(
+		"🔄 *Setup Klikcepat Rotator — Step 1/3: Pick Link*\n\n"+
+			"Page %d/%d • Total %d link belum rotator",
+		page+1, totalPages, total)
+	return c.Edit(text, m, tele.ModeMarkdown)
 }
 
 func (h *Handler) handleKlikcepatRotPickLink(c tele.Context) error {
