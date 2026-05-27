@@ -42,13 +42,13 @@ func (h *Handler) handleRotatorAddTypeKlikcepat(c tele.Context) error {
 	}
 	var picks []pick
 	for _, l := range links {
-		if hasRotator[l.ID] {
+		if hasRotator[int(l.ID)] {
 			continue
 		}
 		if l.Type != "link" && l.Type != "biolink" {
 			continue
 		}
-		picks = append(picks, pick{l.ID, l.URL, l.Type, l.Title})
+		picks = append(picks, pick{int(l.ID), l.URL, l.Type, l.Title})
 	}
 	if len(picks) == 0 {
 		return c.Edit(
@@ -69,7 +69,7 @@ func (h *Handler) handleRotatorAddTypeKlikcepat(c tele.Context) error {
 		}
 		rows = append(rows, m.Row(m.Data(
 			fmt.Sprintf("%s %s (/%s)", typeIcon, truncate(p.Title, 30), p.URL),
-			cbKlikcepatRotPickLink, strconv.Itoa(p.ID))))
+			cbKlikcepatRotPickLink, strconv.Itoa(int(p.ID)))))
 	}
 	rows = append(rows, m.Row(m.Data("❌ Batal", cbCancel)))
 	m.Inline(rows...)

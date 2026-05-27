@@ -52,7 +52,7 @@ func (h *Handler) handleRotatorBulkTypeKlikcepat(c tele.Context) error {
 	// Cache available link IDs in session — biar Pilih Semua / fallback gampang
 	linkIDsStr := make([]string, len(picks))
 	for i, p := range picks {
-		linkIDsStr[i] = strconv.Itoa(p.ID)
+		linkIDsStr[i] = strconv.Itoa(int(p.ID))
 	}
 
 	h.sessions.Set(c.Sender().ID, &Session{
@@ -80,14 +80,14 @@ func (h *Handler) fetchKlikcepatBulkPicks() ([]klikcepatBulkPick, error) {
 	}
 	var picks []klikcepatBulkPick
 	for _, l := range links {
-		if hasRotator[l.ID] {
+		if hasRotator[int(l.ID)] {
 			continue
 		}
 		if l.Type != "link" && l.Type != "biolink" {
 			continue
 		}
 		picks = append(picks, klikcepatBulkPick{
-			ID:    l.ID,
+			ID:    int(l.ID),
 			URL:   l.URL,
 			Type:  l.Type,
 			Title: l.Title,
@@ -129,7 +129,7 @@ func (h *Handler) renderKlikcepatBulkPicker(c tele.Context, picks []klikcepatBul
 			typeIcon = "📄"
 		}
 		btnText := fmt.Sprintf("%s %s %s (/%s)", check, typeIcon, truncate(p.Title, 20), p.URL)
-		rows = append(rows, m.Row(m.Data(truncate(btnText, 60), cbKlikcepatRotBulkToggle, strconv.Itoa(p.ID))))
+		rows = append(rows, m.Row(m.Data(truncate(btnText, 60), cbKlikcepatRotBulkToggle, strconv.Itoa(int(p.ID)))))
 		if len(rows) >= 30 {
 			break
 		}
@@ -274,7 +274,7 @@ func (h *Handler) handleKlikcepatRotBulkPickPool(c tele.Context) error {
 	sb.WriteString(fmt.Sprintf("📦 *Bulk Setup — Result*\n\nPool: *%s*\n\n", escapeMD(pool)))
 
 	for _, l := range links {
-		if !selected[l.ID] {
+		if !selected[int(l.ID)] {
 			continue
 		}
 		// Auto-generate label: TYPE-SLUG (uppercased). Truncate if too long.
@@ -284,7 +284,7 @@ func (h *Handler) handleKlikcepatRotBulkPickPool(c tele.Context) error {
 		}
 		rot := store.KlikcepatRotator{
 			Label:     label,
-			LinkID:    l.ID,
+			LinkID:    int(l.ID),
 			LinkURL:   l.URL,
 			LinkType:  l.Type,
 			PoolLabel: pool,

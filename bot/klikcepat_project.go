@@ -142,7 +142,7 @@ func (h *Handler) handleKlikcepatProjectEdit(c tele.Context) error {
 		}
 		rows = append(rows, m.Row(m.Data(
 			fmt.Sprintf("✏️ %s", truncate(p.Name, 40)),
-			cbKlikcepatProjectEditPick, strconv.Itoa(p.ID))))
+			cbKlikcepatProjectEditPick, strconv.Itoa(int(p.ID)))))
 	}
 	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbKlikcepatProjects)))
 	m.Inline(rows...)
@@ -221,7 +221,7 @@ func (h *Handler) handleKlikcepatProjectDelete(c tele.Context) error {
 		}
 		rows = append(rows, m.Row(m.Data(
 			fmt.Sprintf("🗑 %s", truncate(p.Name, 40)),
-			cbKlikcepatProjectDeletePick, strconv.Itoa(p.ID))))
+			cbKlikcepatProjectDeletePick, strconv.Itoa(int(p.ID)))))
 	}
 	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbKlikcepatProjects)))
 	m.Inline(rows...)

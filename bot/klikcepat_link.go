@@ -156,7 +156,7 @@ func (h *Handler) wizardKlikcepatAddLocation(c tele.Context, sess *Session) erro
 	for _, p := range projects {
 		rows = append(rows, m.Row(m.Data(
 			fmt.Sprintf("📁 %s", p.Name),
-			cbKlikcepatAddPickProject, strconv.Itoa(p.ID))))
+			cbKlikcepatAddPickProject, strconv.Itoa(int(p.ID)))))
 	}
 	rows = append(rows, m.Row(m.Data("❌ Batal", cbCancel)))
 	m.Inline(rows...)
@@ -336,7 +336,7 @@ func (h *Handler) handleKlikcepatEdit(c tele.Context) error {
 		}
 		rows = append(rows, m.Row(m.Data(
 			fmt.Sprintf("✏️ %s (/%s)", truncate(l.Title, 30), l.URL),
-			cbKlikcepatEditPick, strconv.Itoa(l.ID))))
+			cbKlikcepatEditPick, strconv.Itoa(int(l.ID)))))
 	}
 	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbKlikcepat)))
 	m.Inline(rows...)
@@ -463,7 +463,7 @@ func (h *Handler) handleKlikcepatDelete(c tele.Context) error {
 		}
 		rows = append(rows, m.Row(m.Data(
 			fmt.Sprintf("🗑 %s (/%s)", truncate(l.Title, 30), l.URL),
-			cbKlikcepatDeletePick, strconv.Itoa(l.ID))))
+			cbKlikcepatDeletePick, strconv.Itoa(int(l.ID)))))
 	}
 	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbKlikcepat)))
 	m.Inline(rows...)
