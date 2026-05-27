@@ -155,13 +155,19 @@ const (
 // ─── Menu Texts ───────────────────────────────────────────────────────────────
 
 const (
-	textMain = "🏠 *Menu Utama*\n\n" +
-		"Bot ini bantu kamu *otomatis ganti domain* yang kena blokir Kominfo (nawala), supaya iklan/redirect kamu gak mati.\n\n" +
-		"*Cara pakainya 3 langkah:*\n" +
-		"1️⃣ *Monitor* — daftarin domain yang mau dipantau\n" +
-		"2️⃣ *CF Redirect* — daftarin redirect rule Cloudflare-mu\n" +
-		"3️⃣ *Auto Rotator* — gabungin keduanya → otomatis swap\n\n" +
-		"_Klik tombol di bawah untuk mulai:_"
+	textMain = "🎰🔥 *BONG BOT — ALL IN ONE FITUR BOT PALING GACOR!* 🚀✨\n\n" +
+		"🤖 _Bot anti-nawala buat para pejuang affiliate Indonesia._ 🇮🇩\n\n" +
+		"💡 *Kemampuan utama:*\n" +
+		"• 👀 Pantau domain 24/7 dari Kominfo nawala\n" +
+		"• ⚡ Auto-swap Cloudflare rule + Klikcepat link begitu blocked\n" +
+		"• 🔗 Full CRUD biolink + shortlink via Telegram\n" +
+		"• 📊 Multi-source check (Kominfo + TrustPositif + NawalaCheck)\n\n" +
+		"━━━━━━━━━━━━━━━━━━\n" +
+		"📋 *Workflow 3 langkah (buat pemula):*\n" +
+		"1️⃣ *📡 Monitor* — daftarin domain yang mau dipantau\n" +
+		"2️⃣ *⚙️ CF Redirect* / *🔗 KLIKCEPAT* — register rule/link\n" +
+		"3️⃣ *🔄 Auto Rotator* — link rule + pool → bot kerja sendiri\n\n" +
+		"🎯 _Pilih menu di bawah buat mulai:_"
 
 	textMonitor = "📡 *Monitor — Pantau Domain*\n\n" +
 		"Section ini buat *mendaftarkan domain* yang mau dipantau apakah kena nawala Kominfo (TrustPositif).\n\n" +
@@ -435,7 +441,7 @@ func cancelMenu() *tele.ReplyMarkup {
 // Cuma 4 tombol: Status, List Domain, List CF, Setup di DM.
 // Wizard/setup gak ada di group — semua redirect ke DM.
 
-const textGroupWelcome = "🤖 *BongBot — Auto Domain Rotator*\n\n" +
+const textGroupWelcome = "🎰🚀 *BONG BOT — ALL IN ONE FITUR BOT PALING GACOR!* 🔥\n\n" +
 	"_Group ini cuma buat notifikasi alert nawala & auto-swap._\n\n" +
 	"Setup & konfigurasi lewat *DM bot* langsung.\n\n" +
 	"Tombol di bawah cuma read-only — buat liat status & list."

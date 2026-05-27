@@ -168,8 +168,8 @@ func (h *Handler) handleStart(c tele.Context) error {
 
 	// DM admin → tampilin reply keyboard + welcome lengkap
 	h.bot.Send(c.Chat(),
-		"👋 *Selamat datang!*\n\n"+
-			"4 tombol shortcut udah ter-pin di bawah chat — gak perlu ngetik command:\n"+
+		"👋🔥 *Halo bos, selamat datang di markas BONG BOT!* 🎰\n\n"+
+			"⚡ 4 tombol shortcut ter-pin di bawah chat (gak perlu ngetik command):\n"+
 			"• *🚀 START* — restart ke welcome\n"+
 			"• *🏠 MENU* — balik ke menu utama\n"+
 			"• *🩺 STATUS* — health dashboard (cek kondisi bot)\n"+
@@ -178,25 +178,33 @@ func (h *Handler) handleStart(c tele.Context) error {
 
 	if !h.cf.HasCredentials() {
 		return c.Send(
-			"🤖 *BongBot — Auto Domain Rotator*\n\n"+
-				"Bot ini bantu kamu *otomatis ganti domain redirect* di Cloudflare kalau domain kena blokir Kominfo (nawala).\n\n"+
+			"🎰🚀 *BONG BOT — ALL IN ONE FITUR BOT PALING GACOR!* 🔥\n\n"+
+				"🤖 Bot anti-nawala buat pejuang affiliate Indonesia. Auto-swap domain Cloudflare + Klikcepat saat kena blokir, biar duit gak putus! 💰\n\n"+
 				"━━━━━━━━━━━━━━━━━━\n"+
-				"⚠️ *Setup awal — wajib dulu:*\n\n"+
-				"Sebelum pakai fitur lain, set dulu *email & API key Cloudflare* kamu di menu *🔧 Settings*. "+
+				"⚠️ *Setup awal — wajib dulu bos:*\n\n"+
+				"Sebelum pakai fitur auto-swap, set dulu credentials di menu *🔧 Settings*:\n"+
+				"• ⚙️ *Cloudflare* — email + Global API Key\n"+
+				"• 🔗 *Klikcepat* — API Key (kalau pake klikcepat)\n\n"+
 				"Klik tombol Settings di bawah 👇",
 			mainMenu(), tele.ModeMarkdown,
 		)
 	}
 
 	return c.Send(
-		"🤖 *BongBot — Auto Domain Rotator*\n\n"+
-			"Bot ini bantu kamu *otomatis ganti domain redirect* di Cloudflare kalau domain kena blokir Kominfo.\n\n"+
+		"🎰🚀 *BONG BOT — ALL IN ONE FITUR BOT PALING GACOR!* 🔥\n\n"+
+			"🤖 _Bot anti-nawala buat pejuang affiliate Indonesia._ 🇮🇩\n\n"+
+			"💡 *Yang bot ini bisa:*\n"+
+			"• 👀 Pantau domain 24/7 (Kominfo + TrustPositif + NawalaCheck)\n"+
+			"• ⚡ Auto-swap Cloudflare redirect rule pas kena blokir\n"+
+			"• 🔗 Auto-swap link klikcepat (biolink + shortlink) juga\n"+
+			"• 📦 Bulk setup — handle banyak rule/link sekaligus\n"+
+			"• 🛡 Multi-admin private bot dengan group alert mode\n\n"+
 			"━━━━━━━━━━━━━━━━━━\n"+
-			"*🔰 Buat pemula, urutannya gini:*\n\n"+
-			"1️⃣ *📡 Monitor* — daftarin semua domain kamu (pengelompokan pake label)\n\n"+
-			"2️⃣ *⚙️ CF Redirect* — daftarin redirect rule yang ada di Cloudflare (cukup ketik nama domainnya, bot fetch sendiri)\n\n"+
-			"3️⃣ *🔄 Auto Rotator* — hubungin CF Rule + pool domain → bot kerja otomatis 24/7\n\n"+
-			"_Pilih menu untuk mulai 👇_",
+			"*🔰 Buat pemula, urutannya:*\n\n"+
+			"1️⃣ *📡 Monitor* — daftarin semua domain kamu (per label)\n\n"+
+			"2️⃣ *⚙️ CF Redirect* atau *🔗 KLIKCEPAT* — register rule/link\n\n"+
+			"3️⃣ *🔄 Auto Rotator* — hubungin CF/Klikcepat + pool domain → bot kerja otomatis 24/7\n\n"+
+			"🎯 _Pilih menu di bawah buat mulai 👇_",
 		mainMenu(), tele.ModeMarkdown,
 	)
 }
