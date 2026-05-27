@@ -437,6 +437,12 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleKlikcepatEditPick(c)
 	case cbKlikcepatEditField:
 		return h.handleKlikcepatEditField(c)
+	case cbKlikcepatDelete:
+		return h.handleKlikcepatDelete(c)
+	case cbKlikcepatDeletePick:
+		return h.handleKlikcepatDeletePick(c)
+	case cbKlikcepatDeleteConfirm:
+		return h.handleKlikcepatDeleteConfirm(c)
 
 	// Health Dashboard & History
 	case cbHistory:

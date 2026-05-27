@@ -436,3 +436,82 @@ func (h *Handler) wizardKlikcepatEditValue(c tele.Context, sess *Session) error 
 	}
 	return h.reply(c, successText, backToKlikcepat(), tele.ModeMarkdown)
 }
+
+// ─── Delete Link (with confirm) ──────────────────────────────────────────────
+
+func (h *Handler) handleKlikcepatDelete(c tele.Context) error {
+	if !h.klikcepat.HasCredentials() {
+		return c.Respond(&tele.CallbackResponse{
+			Text: "⚠️ Setup credentials dulu", ShowAlert: true,
+		})
+	}
+	c.Edit("⏳ Loading links...", tele.ModeMarkdown)
+	links, err := h.klikcepat.ListLinks("")
+	if err != nil {
+		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
+			backToKlikcepat(), tele.ModeMarkdown)
+	}
+	if len(links) == 0 {
+		return c.Edit("📭 Belum ada link.", backToKlikcepat(), tele.ModeMarkdown)
+	}
+
+	m := &tele.ReplyMarkup{}
+	var rows []tele.Row
+	for _, l := range links {
+		if len(rows) >= 30 {
+			break
+		}
+		rows = append(rows, m.Row(m.Data(
+			fmt.Sprintf("🗑 %s (/%s)", truncate(l.Title, 30), l.URL),
+			cbKlikcepatDeletePick, strconv.Itoa(l.ID))))
+	}
+	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbKlikcepat)))
+	m.Inline(rows...)
+
+	return c.Edit("🗑 *Hapus Link — Pilih link yang mau dihapus:*", m, tele.ModeMarkdown)
+}
+
+func (h *Handler) handleKlikcepatDeletePick(c tele.Context) error {
+	linkIDStr := extractParam(c)
+	linkID, _ := strconv.Atoi(linkIDStr)
+	if linkID <= 0 {
+		return h.handleKlikcepatDelete(c)
+	}
+	link, err := h.klikcepat.GetLink(linkID)
+	if err != nil {
+		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
+			backToKlikcepat(), tele.ModeMarkdown)
+	}
+
+	prompt := fmt.Sprintf(
+		"⚠️ *Konfirmasi Hapus*\n\n"+
+			"📛 Title: *%s*\n"+
+			"🔗 Slug: `%s`\n"+
+			"🎯 Target: `%s`\n\n"+
+			"Yakin mau hapus? Action ini *tidak bisa di-undo*.",
+		escapeMD(link.Title), escapeMD(link.URL), escapeMD(link.LocationURL))
+
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("🗑 Ya, Hapus", cbKlikcepatDeleteConfirm, linkIDStr),
+			m.Data("❌ Batal", cbKlikcepat),
+		),
+	)
+	return c.Edit(prompt, m, tele.ModeMarkdown)
+}
+
+func (h *Handler) handleKlikcepatDeleteConfirm(c tele.Context) error {
+	linkIDStr := extractParam(c)
+	linkID, _ := strconv.Atoi(linkIDStr)
+	if linkID <= 0 {
+		return c.Edit("❌ Invalid link ID", backToKlikcepat(), tele.ModeMarkdown)
+	}
+	c.Edit("⏳ Deleting...", tele.ModeMarkdown)
+	if err := h.klikcepat.DeleteLink(linkID); err != nil {
+		return c.Edit(fmt.Sprintf("❌ Gagal hapus:\n```\n%s\n```", escapeMD(err.Error())),
+			backToKlikcepat(), tele.ModeMarkdown)
+	}
+	return c.Edit(fmt.Sprintf("✅ Link ID `%d` berhasil dihapus.", linkID),
+		backToKlikcepat(), tele.ModeMarkdown)
+}
