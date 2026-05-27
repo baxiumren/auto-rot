@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bongbot/checker"
+	"bongbot/klikcepat"
 	"bongbot/store"
 )
 
@@ -66,6 +67,9 @@ type MonitorScanner struct {
 	chk      *checker.Checker
 	history  *store.HistoryStore
 
+	klikcepat         KlikcepatUpdater
+	klikcepatRotators *store.KlikcepatRotatorStore
+
 	mu      sync.Mutex
 	blocked map[string]*blockCycle
 
@@ -83,6 +87,14 @@ type cfUpdater interface {
 	UpdateURL(rule store.CFRule, newURL string) error
 }
 
+// KlikcepatUpdater is the minimal interface MonitorScanner needs from klikcepat client.
+// *klikcepat.Client satisfies this automatically.
+type KlikcepatUpdater interface {
+	HasCredentials() bool
+	GetLink(id int) (*klikcepat.Link, error)
+	UpdateLinkLocation(id int, locationURL string) error
+}
+
 func NewMonitorScanner(
 	cf cfUpdater,
 	domains *store.DomainStore,
@@ -91,17 +103,21 @@ func NewMonitorScanner(
 	notify Notifier,
 	interval time.Duration,
 	history *store.HistoryStore,
+	klc KlikcepatUpdater,
+	klcRotators *store.KlikcepatRotatorStore,
 ) *MonitorScanner {
 	return &MonitorScanner{
-		cf:       cf,
-		domains:  domains,
-		cfrules:  cfrules,
-		rotators: rotators,
-		notify:   notify,
-		chk:      checker.Default(),
-		history:  history,
-		blocked:  make(map[string]*blockCycle),
-		interval: interval,
+		cf:                cf,
+		domains:           domains,
+		cfrules:           cfrules,
+		rotators:          rotators,
+		notify:            notify,
+		chk:               checker.Default(),
+		history:           history,
+		klikcepat:         klc,
+		klikcepatRotators: klcRotators,
+		blocked:           make(map[string]*blockCycle),
+		interval:          interval,
 	}
 }
 
@@ -616,6 +632,72 @@ func (ms *MonitorScanner) triggerAutoSwap(blockedDomain, blockedLabel string) {
 		))
 		log.Printf("[MONITOR-SCAN] auto-swap rule=%s pool=%s: %s → %s | URL: %s → %s",
 			rule.Label, rot.PoolLabel, blockedDomain, nextDomain, currentURL, nextURL)
+	}
+
+	// NEW: scan klikcepat rotators
+	if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
+		ms.triggerKlikcepatAutoSwap(blockedDomain, blockedLabel)
+	}
+}
+
+// triggerKlikcepatAutoSwap — scan klikcepat rotators, swap location_url if matches blocked domain.
+func (ms *MonitorScanner) triggerKlikcepatAutoSwap(blockedDomain, blockedLabel string) {
+	rotators := ms.klikcepatRotators.GetAll()
+	for _, rot := range rotators {
+		if !rot.Active {
+			continue
+		}
+		link, err := ms.klikcepat.GetLink(rot.LinkID)
+		if err != nil {
+			log.Printf("[KLIKCEPAT-SWAP] gagal fetch link %d (%s): %v", rot.LinkID, rot.LinkURL, err)
+			continue
+		}
+		currentHost := extractHost(link.LocationURL)
+		if !strings.EqualFold(currentHost, blockedDomain) {
+			continue
+		}
+		pool := ms.domains.GetByLabel(rot.PoolLabel)
+		nextDomain := ms.pickNextSafe(pool, blockedDomain)
+		if nextDomain == "" {
+			ms.notify.Notify(fmt.Sprintf(
+				"🚨 *Klikcepat swap GAGAL — pool kosong*\n"+
+					"🔗 Link: `/%s`\n"+
+					"📂 Pool: `%s` (%d domain — semua blocked)\n"+
+					"🚫 Blocked: `%s`",
+				rot.LinkURL, rot.PoolLabel, len(pool), blockedDomain))
+			continue
+		}
+		newLocationURL := buildSwapURL(link.LocationURL, nextDomain)
+		if err := ms.klikcepat.UpdateLinkLocation(rot.LinkID, newLocationURL); err != nil {
+			if ms.history != nil {
+				ms.history.LogSwap("klikcepat-scan", rot.Label, rot.LinkURL, link.LocationURL, newLocationURL, false, err.Error())
+			}
+			ms.notify.Notify(fmt.Sprintf(
+				"❌ *Klikcepat AUTO-SWAP GAGAL*\n"+
+					"🔗 Link: `/%s`\n"+
+					"⚠️ Error: %v",
+				rot.LinkURL, err))
+			continue
+		}
+		if ms.history != nil {
+			ms.history.LogSwap("klikcepat-scan", rot.Label, rot.LinkURL, link.LocationURL, newLocationURL, true, "")
+		}
+		ms.notify.Notify(fmt.Sprintf(
+			"⚡ *KLIKCEPAT AUTO-SWAP*\n"+
+				"🔗 Link: `/%s` (%s)\n"+
+				"🚫 Sebelum: `%s` *(BLOCKED — label: %s)*\n"+
+				"   URL: `%s`\n"+
+				"✅ Sekarang: `%s`\n"+
+				"   URL: `%s`\n"+
+				"📂 Pool: `%s`\n"+
+				"🕐 %s",
+			rot.LinkURL, link.Type,
+			blockedDomain, blockedLabel, link.LocationURL,
+			nextDomain, newLocationURL,
+			rot.PoolLabel,
+			time.Now().Format("02/01/2006 15:04:05")))
+		log.Printf("[KLIKCEPAT-SWAP] rotator=%s link=%s pool=%s: %s → %s",
+			rot.Label, rot.LinkURL, rot.PoolLabel, blockedDomain, nextDomain)
 	}
 }
 

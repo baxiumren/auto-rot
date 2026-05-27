@@ -103,7 +103,7 @@ func main() {
 
 	// Monitor scanner (scan SEMUA domain di monitor + reactive auto-swap + spam alert).
 	// Pool untuk swap diambil dari Rotator config (CFRule → PoolLabel).
-	monScanner := rotator.NewMonitorScanner(cf, domains, cfrules, rotators, notify, cfg.CheckInterval, history)
+	monScanner := rotator.NewMonitorScanner(cf, domains, cfrules, rotators, notify, cfg.CheckInterval, history, klc, klcRotators)
 
 	// Handler bot
 	h := bot.New(b, cfg, domains, cfrules, rotators, creds, cf, rotSvc, monScanner, history, klc, klcRotators)
