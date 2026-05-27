@@ -444,6 +444,23 @@ func (h *Handler) handleCallback(c tele.Context) error {
 	case cbKlikcepatDeleteConfirm:
 		return h.handleKlikcepatDeleteConfirm(c)
 
+	case cbKlikcepatProjects:
+		return h.handleKlikcepatProjects(c)
+	case cbKlikcepatProjectAdd:
+		return h.handleKlikcepatProjectAdd(c)
+	case cbKlikcepatProjectList:
+		return h.handleKlikcepatProjectList(c)
+	case cbKlikcepatProjectEdit:
+		return h.handleKlikcepatProjectEdit(c)
+	case cbKlikcepatProjectEditPick:
+		return h.handleKlikcepatProjectEditPick(c)
+	case cbKlikcepatProjectDelete:
+		return h.handleKlikcepatProjectDelete(c)
+	case cbKlikcepatProjectDeletePick:
+		return h.handleKlikcepatProjectDeletePick(c)
+	case cbKlikcepatProjectDeleteConfirm:
+		return h.handleKlikcepatProjectDeleteConfirm(c)
+
 	// Health Dashboard & History
 	case cbHistory:
 		return h.handleHistory(c)
@@ -616,6 +633,13 @@ func (h *Handler) handleText(c tele.Context) error {
 		return nil // callback-only
 	case StepKlikcepatEditValue:
 		return h.wizardKlikcepatEditValue(c, sess)
+
+	case StepKlikcepatProjectAddName:
+		return h.wizardKlikcepatProjectAddName(c, sess)
+	case StepKlikcepatProjectAddColor:
+		return h.wizardKlikcepatProjectAddColor(c, sess)
+	case StepKlikcepatProjectEditName:
+		return h.wizardKlikcepatProjectEditName(c, sess)
 	}
 
 	return nil
