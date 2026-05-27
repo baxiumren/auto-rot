@@ -447,6 +447,18 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleSettingsClearConfirm(c)
 	case cbSettingsClearYes:
 		return h.handleSettingsClearDo(c)
+
+	// Klikcepat Settings
+	case cbSettingsKlikcepat:
+		return h.handleSettingsKlikcepat(c)
+	case cbSettingsKlikcepatSetURL:
+		return h.handleSettingsKlikcepatSetURL(c)
+	case cbSettingsKlikcepatSetKey:
+		return h.handleSettingsKlikcepatSetKey(c)
+	case cbSettingsKlikcepatTest:
+		return h.handleSettingsKlikcepatTest(c)
+	case cbSettingsKlikcepatClear:
+		return h.handleSettingsKlikcepatClear(c)
 	}
 
 	return nil
@@ -564,6 +576,10 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardSettingsBothEmail(c, sess)
 	case StepSettingsBothKey:
 		return h.wizardSettingsBothKey(c, sess)
+	case StepSettingsKlikcepatURL:
+		return h.wizardSettingsKlikcepatURL(c, sess)
+	case StepSettingsKlikcepatKey:
+		return h.wizardSettingsKlikcepatKey(c, sess)
 	}
 
 	return nil

@@ -228,6 +228,9 @@ func settingsMenu() *tele.ReplyMarkup {
 		m.Row(
 			m.Data("🗑 Hapus Credentials", cbSettingsClear),
 		),
+		m.Row(
+			m.Data("🔗 Klikcepat Settings", cbSettingsKlikcepat),
+		),
 		m.Row(m.Data("🔙 Kembali", cbMain)),
 	)
 	return m
