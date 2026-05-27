@@ -415,6 +415,12 @@ func (ms *MonitorScanner) checkOne(domain, label string) {
 			ms.mu.Unlock()
 		}
 
+		// Klikcepat auto-swap: dipanggil SETIAP cycle BLOCKED (idempotent — skip kalau host udah beda).
+		// Decoupled dari CF — biar kalau CF gak ada rotator, klikcepat tetep jalan.
+		if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
+			ms.triggerKlikcepatAutoSwap(domain, label)
+		}
+
 	case "SAFE":
 		// Sticky-block yang nyangkut: kalau gak sticky lagi, hapus dari blocked
 		if exists && !ms.chk.IsForceBlocked(domain) {
@@ -633,16 +639,23 @@ func (ms *MonitorScanner) triggerAutoSwap(blockedDomain, blockedLabel string) {
 		log.Printf("[MONITOR-SCAN] auto-swap rule=%s pool=%s: %s → %s | URL: %s → %s",
 			rule.Label, rot.PoolLabel, blockedDomain, nextDomain, currentURL, nextURL)
 	}
-
-	// NEW: scan klikcepat rotators
-	if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
-		ms.triggerKlikcepatAutoSwap(blockedDomain, blockedLabel)
-	}
+	// NOTE: triggerKlikcepatAutoSwap dipanggil terpisah dari BLOCKED detector,
+	// gak nested di sini biar gak ke-skip kalau CF rules kosong.
 }
 
 // triggerKlikcepatAutoSwap — scan klikcepat rotators, swap location_url if matches blocked domain.
 func (ms *MonitorScanner) triggerKlikcepatAutoSwap(blockedDomain, blockedLabel string) {
 	rotators := ms.klikcepatRotators.GetAll()
+	activeCount := 0
+	for _, r := range rotators {
+		if r.Active {
+			activeCount++
+		}
+	}
+	log.Printf("[KLIKCEPAT-SWAP] check blocked=%s vs %d rotator (%d aktif)",
+		blockedDomain, len(rotators), activeCount)
+
+	matched := 0
 	for _, rot := range rotators {
 		if !rot.Active {
 			continue
@@ -653,9 +666,12 @@ func (ms *MonitorScanner) triggerKlikcepatAutoSwap(blockedDomain, blockedLabel s
 			continue
 		}
 		currentHost := extractHost(link.LocationURL)
+		log.Printf("[KLIKCEPAT-SWAP] rotator=%s link=/%s location_host=%q vs blocked=%q",
+			rot.Label, rot.LinkURL, currentHost, blockedDomain)
 		if !strings.EqualFold(currentHost, blockedDomain) {
 			continue
 		}
+		matched++
 		pool := ms.domains.GetByLabel(rot.PoolLabel)
 		nextDomain := ms.pickNextSafe(pool, blockedDomain)
 		if nextDomain == "" {
@@ -704,6 +720,9 @@ func (ms *MonitorScanner) triggerKlikcepatAutoSwap(blockedDomain, blockedLabel s
 			time.Now().Format("02/01/2006 15:04:05")))
 		log.Printf("[KLIKCEPAT-SWAP] rotator=%s link=%s pool=%s: %s → %s",
 			rot.Label, rot.LinkURL, rot.PoolLabel, blockedDomain, nextDomain)
+	}
+	if matched == 0 && activeCount > 0 {
+		log.Printf("[KLIKCEPAT-SWAP] no rotator matched blocked=%s (cek apakah location_url benar2 pake domain itu)", blockedDomain)
 	}
 }
 
