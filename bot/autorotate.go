@@ -213,8 +213,10 @@ func (h *Handler) wizardRotatorAddLabel(c tele.Context, sess *Session) error {
 // ─── List Rotators ────────────────────────────────────────────────────────────
 
 func (h *Handler) handleRotatorList(c tele.Context) error {
-	rotators := h.rotators.GetAll()
-	if len(rotators) == 0 {
+	cfRotators := h.rotators.GetAll()
+	klcRotators := h.klikcepatRotators.GetAll()
+
+	if len(cfRotators) == 0 && len(klcRotators) == 0 {
 		return c.Edit(
 			"📭 *Belum ada Auto Rotator*\n\n"+
 				"Buat dulu lewat *➕ Setup Rotator*. Wizard 3 langkah aja, gak ribet.\n\n"+
@@ -223,40 +225,67 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("📋 *Auto Rotator List*\n═══════════════════════════\n\n")
+	sb.WriteString("📋 *Auto Rotator List*\n═══════════════════════════\n")
 
-	m := &tele.ReplyMarkup{}
-	var rows []tele.Row
-
-	for i, rot := range rotators {
-		cfRule, _ := h.cfrules.GetByID(rot.CFRuleID)
-		cfLabel := rot.CFRuleID
-		if cfRule.Label != "" {
-			cfLabel = cfRule.Label
+	if len(cfRotators) > 0 {
+		sb.WriteString("\n═══ ⚙️ CF Redirect ═══\n")
+		activeCF := 0
+		for i, rot := range cfRotators {
+			cfRule, _ := h.cfrules.GetByID(rot.CFRuleID)
+			cfLabel := rot.CFRuleID
+			if cfRule.Label != "" {
+				cfLabel = cfRule.Label
+			}
+			status := "▶️ AKTIF"
+			if !rot.Active {
+				status = "⏸ PAUSE"
+			} else {
+				activeCF++
+			}
+			sb.WriteString(fmt.Sprintf("%d. *%s* %s\n", i+1, escapeMD(rot.Label), status))
+			sb.WriteString(fmt.Sprintf("   ⚙️ CF: *%s*\n", escapeMD(cfLabel)))
+			sb.WriteString(fmt.Sprintf("   📂 Pool: *%s*\n", escapeMD(rot.PoolLabel)))
 		}
-
-		status := "▶️ AKTIF"
-		if !rot.Active {
-			status = "⏸ PAUSE"
-		}
-
-		sb.WriteString(fmt.Sprintf("%d. *%s* %s\n", i+1, rot.Label, status))
-		sb.WriteString(fmt.Sprintf("   ⚙️ CF: *%s*\n", cfLabel))
-		sb.WriteString(fmt.Sprintf("   📂 Pool: *%s*\n\n", rot.PoolLabel))
-
-		toggleText := "⏸ Pause"
-		if !rot.Active {
-			toggleText = "▶️ Resume"
-		}
-		rows = append(rows, m.Row(
-			m.Data(toggleText+" "+rot.Label, cbRotatorToggle, rot.ID),
-			m.Data("🗑 Hapus", cbRotatorDelete, rot.ID),
-		))
+		sb.WriteString(fmt.Sprintf("\n_%d CF rotator (%d aktif)_\n", len(cfRotators), activeCF))
 	}
 
-	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbRotator)))
-	m.Inline(rows...)
+	if len(klcRotators) > 0 {
+		sb.WriteString("\n═══ 🔗 KLIKCEPAT ═══\n")
+		activeKLC := 0
+		for i, rot := range klcRotators {
+			status := "▶️ AKTIF"
+			if !rot.Active {
+				status = "⏸ PAUSE"
+			} else {
+				activeKLC++
+			}
+			typeIcon := "🔗"
+			if rot.LinkType == "biolink" {
+				typeIcon = "📄"
+			}
+			sb.WriteString(fmt.Sprintf("%d. *%s* %s\n", i+1, escapeMD(rot.Label), status))
+			sb.WriteString(fmt.Sprintf("   %s Link: `/%s`\n", typeIcon, escapeMD(rot.LinkURL)))
+			sb.WriteString(fmt.Sprintf("   📂 Pool: *%s*\n", escapeMD(rot.PoolLabel)))
+		}
+		sb.WriteString(fmt.Sprintf("\n_%d Klikcepat rotator (%d aktif)_\n", len(klcRotators), activeKLC))
+	}
 
+	totalActive := 0
+	for _, r := range cfRotators {
+		if r.Active {
+			totalActive++
+		}
+	}
+	for _, r := range klcRotators {
+		if r.Active {
+			totalActive++
+		}
+	}
+	sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d CF + %d Klikcepat = %d rotator (%d aktif)",
+		len(cfRotators), len(klcRotators), len(cfRotators)+len(klcRotators), totalActive))
+
+	m := &tele.ReplyMarkup{}
+	m.Inline(m.Row(m.Data("🔙 Kembali", cbRotator)))
 	return c.Edit(sb.String(), m, tele.ModeMarkdown)
 }
 
