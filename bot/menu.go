@@ -77,6 +77,7 @@ const (
 
 	// Settings
 	cbSettings         = "settings"
+	cbSettingsCF       = "settings_cf"
 	cbSettingsSetEmail = "settings_set_email"
 	cbSettingsSetKey   = "settings_set_key"
 	cbSettingsSetBoth  = "settings_set_both"
@@ -221,9 +222,29 @@ func mainMenu() *tele.ReplyMarkup {
 	return m
 }
 
-// ─── Settings Menu ────────────────────────────────────────────────────────────
+// ─── Settings Menus ──────────────────────────────────────────────────────────
+//
+// Hierarchy:
+//   🔧 Settings (cbSettings → handleSettings)
+//   └── Hub picker: pick CF or Klikcepat
+//       ├── ⚙️ Cloudflare → settingsCFMenu (set email/key/test/clear)
+//       └── 🔗 Klikcepat → klikcepatSettingsMenu (set URL/key/test/clear)
 
+// settingsMenu is the HUB picker (top-level Settings entry).
 func settingsMenu() *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("⚙️ Cloudflare", cbSettingsCF),
+			m.Data("🔗 Klikcepat", cbSettingsKlikcepat),
+		),
+		m.Row(m.Data("🔙 Kembali", cbMain)),
+	)
+	return m
+}
+
+// settingsCFMenu — CF-specific settings (was the OLD settingsMenu).
+func settingsCFMenu() *tele.ReplyMarkup {
 	m := &tele.ReplyMarkup{}
 	m.Inline(
 		m.Row(
@@ -237,17 +258,23 @@ func settingsMenu() *tele.ReplyMarkup {
 		m.Row(
 			m.Data("🗑 Hapus Credentials", cbSettingsClear),
 		),
-		m.Row(
-			m.Data("🔗 Klikcepat Settings", cbSettingsKlikcepat),
-		),
-		m.Row(m.Data("🔙 Kembali", cbMain)),
+		m.Row(m.Data("🔙 Kembali", cbSettings)),
 	)
 	return m
 }
 
+// backToSettings goes back to the Settings Hub picker.
 func backToSettings() *tele.ReplyMarkup {
 	m := &tele.ReplyMarkup{}
 	m.Inline(m.Row(m.Data("🔙 Kembali", cbSettings)))
+	return m
+}
+
+// backToSettingsCF goes back to the CF settings sub-menu.
+// Use this for CF sub-handler success messages (so user lands back in CF section, not hub).
+func backToSettingsCF() *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	m.Inline(m.Row(m.Data("🔙 Kembali", cbSettingsCF)))
 	return m
 }
 

@@ -494,6 +494,8 @@ func (h *Handler) handleCallback(c tele.Context) error {
 	// Settings
 	case cbSettings:
 		return h.handleSettings(c)
+	case cbSettingsCF:
+		return h.handleSettingsCF(c)
 	case cbSettingsSetEmail:
 		return h.handleSettingsSetEmail(c)
 	case cbSettingsSetKey:

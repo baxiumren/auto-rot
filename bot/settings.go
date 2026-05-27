@@ -8,9 +8,36 @@ import (
 	tele "gopkg.in/telebot.v3"
 )
 
-// ─── Settings Menu ────────────────────────────────────────────────────────────
+// ─── Settings Hub ────────────────────────────────────────────────────────────
+// handleSettings = top-level Settings entry. Shows hub picker (CF / Klikcepat).
+// CF specifics di handleSettingsCF. Klikcepat di handleSettingsKlikcepat.
 
 func (h *Handler) handleSettings(c tele.Context) error {
+	cfStatus := "❌ belum di-set"
+	if h.cf.HasCredentials() {
+		cfStatus = "✅ aktif"
+	}
+	klcStatus := "❌ belum di-set"
+	if h.klikcepat.HasCredentials() {
+		klcStatus = "✅ aktif"
+	}
+
+	text := fmt.Sprintf(
+		"🔧 *Settings — Pilih Akun*\n\n"+
+			"Bot ini connect ke 2 platform external:\n\n"+
+			"⚙️ *Cloudflare* — %s\n"+
+			"_Untuk auto-rotate redirect rule kamu._\n\n"+
+			"🔗 *Klikcepat* — %s\n"+
+			"_Untuk auto-rotate location_url biolink / shortlink kamu._\n\n"+
+			"━━━━━━━━━━━━━━━━━━\n"+
+			"Pilih platform yang mau di-configure:",
+		cfStatus, klcStatus,
+	)
+	return c.Edit(text, settingsMenu(), tele.ModeMarkdown)
+}
+
+// handleSettingsCF — CF-specific settings (was the OLD handleSettings body).
+func (h *Handler) handleSettingsCF(c tele.Context) error {
 	creds := h.creds.Get()
 
 	emailDisplay := creds.CFEmail
@@ -27,7 +54,7 @@ func (h *Handler) handleSettings(c tele.Context) error {
 	}
 
 	text := fmt.Sprintf(
-		"🔧 *Settings — Akun Cloudflare*\n\n"+
+		"⚙️ *Settings — Akun Cloudflare*\n\n"+
 			"Di sini kamu *connect-in akun Cloudflare* ke bot. Bot butuh ini buat bisa baca & update redirect rule kamu otomatis.\n\n"+
 			"━━━━━━━━━━━━━━━━━━\n"+
 			"📧 *Email Cloudflare:*\n`%s`\n\n"+
@@ -40,7 +67,7 @@ func (h *Handler) handleSettings(c tele.Context) error {
 		escapeMD(emailDisplay), escapeMD(keyDisplay), statusIcon, statusText,
 	)
 
-	return c.Edit(text, settingsMenu(), tele.ModeMarkdown)
+	return c.Edit(text, settingsCFMenu(), tele.ModeMarkdown)
 }
 
 // ─── Set Email Only ───────────────────────────────────────────────────────────
