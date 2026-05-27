@@ -253,3 +253,75 @@ sudo systemctl enable --now bongbot-2
 
 - Cek log: `sudo journalctl -u bongbot -f`
 - File issue di [GitHub repo](https://github.com/baxiumren/auto-rot)
+
+## 🔗 KLIKCEPAT Integration (Optional)
+
+Bot bisa integrate dengan klikcepat.com (66biolinks) untuk:
+- CRUD link & project via Telegram bot
+- Auto-swap `location_url` ketika domain target kena nawala (parallel ke CF Rotator)
+
+### Setup di Klikcepat (one-time)
+
+**Sebagai master admin di klikcepat:**
+
+1. **Admin Panel → Settings** → ✅ Enable users API system
+2. **Admin Panel → Plans** → edit plan untuk normal admin → ✅ API access
+
+**Sebagai normal admin:**
+
+3. **Account → API** → klik **Generate API Key**
+4. Copy API key (format: panjang random string)
+
+### Setup di Bot
+
+**Opsi A — via .env (restart bot setelah edit):**
+
+```env
+KLIKCEPAT_BASE_URL=https://klikcepat.com
+KLIKCEPAT_API_KEY=<paste-api-key-disini>
+```
+
+Lalu restart bot atau jalanin `sudo bash /opt/bongbot/deploy/install.sh`.
+
+**Opsi B — via bot menu (no restart):**
+
+1. DM bot → 🔧 Settings → 🔗 Klikcepat Settings
+2. Set Base URL → ketik `https://klikcepat.com`
+3. Set API Key → paste API key (pesan auto-deleted untuk security)
+4. ✅ Test Koneksi → harus respon "Test BERHASIL"
+
+### Auto-Swap Setup
+
+Setelah credentials OK:
+
+1. DM bot → 🔄 Auto Rotator → ➕ Setup Rotator
+2. Pilih **🔗 KLIKCEPAT** (instead of CF Redirect)
+3. Pick klikcepat link (yang mau di-auto-swap)
+4. Pick pool label (dari Monitor domains)
+5. Kasih label → save → done
+
+Sekarang ketika MonitorScanner detect domain target kena nawala:
+- Bot scan CF rules → swap (existing)
+- Bot scan klikcepat rotators → swap location_url ke domain backup dari pool
+
+Notif group:
+```
+⚡ KLIKCEPAT AUTO-SWAP
+🔗 Link: /promo-maha (link)
+🚫 Sebelum: maha-supreme.com (BLOCKED)
+✅ Sekarang: mahasupreme.xyz
+```
+
+### Limitasi Saat Ini
+
+- **Biolink blocks** (button2 inside biolink page) gak bisa di-CRUD via bot — 66biolinks gak expose API untuknya. Manage via klikcepat dashboard web.
+- API hard cap: 1000 link per fetch. Kalau lu punya >1000 link, perlu pagination support (future enhancement).
+- Klikcepat rotators belum punya toggle/delete UI di bot (List view aja). Future enhancement.
+
+### Troubleshooting
+
+**"Klikcepat HTTP 401":** API key invalid/expired. Re-generate di klikcepat → set ulang via bot.
+
+**"Klikcepat HTTP 404" saat update link:** Link sudah dihapus di dashboard. Hapus rotator config-nya manual via filesystem (data/klikcepat_rotators.json) atau via future delete UI.
+
+**Test Koneksi sukses tapi auto-swap gak jalan:** Pastikan rotator config Active=true. Cek log bot saat ada blocked detected — harus muncul `[KLIKCEPAT-SWAP] ...`.
