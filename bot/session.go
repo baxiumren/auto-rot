@@ -49,6 +49,30 @@ const (
 
 	// Global search
 	StepGlobalSearch Step = "global_search"
+
+	// Klikcepat Settings
+	StepSettingsKlikcepatURL Step = "settings_klikcepat_url"
+	StepSettingsKlikcepatKey Step = "settings_klikcepat_key"
+
+	// Klikcepat Link CRUD
+	StepKlikcepatAddType        Step = "klikcepat_add_type"
+	StepKlikcepatAddTitle       Step = "klikcepat_add_title"
+	StepKlikcepatAddSlug        Step = "klikcepat_add_slug"
+	StepKlikcepatAddLocationURL Step = "klikcepat_add_location"
+	StepKlikcepatAddProject     Step = "klikcepat_add_project"
+
+	StepKlikcepatEditPickField Step = "klikcepat_edit_pickfield"
+	StepKlikcepatEditValue     Step = "klikcepat_edit_value"
+
+	// Klikcepat Project CRUD
+	StepKlikcepatProjectAddName  Step = "klikcepat_project_add_name"
+	StepKlikcepatProjectAddColor Step = "klikcepat_project_add_color"
+	StepKlikcepatProjectEditName Step = "klikcepat_project_edit_name"
+
+	// Klikcepat Rotator wizard (entry from Auto Rotator)
+	StepKlikcepatRotatorPickLink Step = "klikcepat_rot_picklink"
+	StepKlikcepatRotatorPickPool Step = "klikcepat_rot_pickpool"
+	StepKlikcepatRotatorAddLabel Step = "klikcepat_rot_label"
 )
 
 type Session struct {

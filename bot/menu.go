@@ -94,6 +94,54 @@ const (
 	cbAlertRemove     = "alert_remove"  // hapus domain dari alert (param=domain)
 )
 
+const (
+	// Klikcepat root menu
+	cbKlikcepat = "klikcepat"
+
+	// Klikcepat Settings
+	cbSettingsKlikcepat       = "settings_klikcepat"
+	cbSettingsKlikcepatSetURL = "settings_klc_url"
+	cbSettingsKlikcepatSetKey = "settings_klc_key"
+	cbSettingsKlikcepatTest   = "settings_klc_test"
+	cbSettingsKlikcepatClear  = "settings_klc_clear"
+
+	// Klikcepat Link CRUD
+	cbKlikcepatAdd            = "klc_add"
+	cbKlikcepatAddType        = "klc_add_type"   // param = link type
+	cbKlikcepatAddPickProject = "klc_add_proj"   // param = project_id (0 = skip)
+	cbKlikcepatList           = "klc_list"       // param = page index
+	cbKlikcepatListByProj     = "klc_list_proj"  // param = "projectID|page"
+	cbKlikcepatEdit           = "klc_edit"
+	cbKlikcepatEditPick       = "klc_edit_pick"  // param = link ID
+	cbKlikcepatEditField      = "klc_edit_field" // param = field name
+	cbKlikcepatDelete         = "klc_delete"
+	cbKlikcepatDeletePick     = "klc_delete_pick"  // param = link ID
+	cbKlikcepatDeleteConfirm  = "klc_del_yes"      // param = link ID
+	cbKlikcepatOpenDashboard  = "klc_dashboard"
+
+	// Klikcepat Projects
+	cbKlikcepatProjects             = "klc_projects"
+	cbKlikcepatProjectAdd           = "klc_proj_add"
+	cbKlikcepatProjectList          = "klc_proj_list"
+	cbKlikcepatProjectEdit          = "klc_proj_edit"
+	cbKlikcepatProjectEditPick      = "klc_proj_edit_pick"
+	cbKlikcepatProjectDelete        = "klc_proj_del"
+	cbKlikcepatProjectDeletePick    = "klc_proj_del_pick"
+	cbKlikcepatProjectDeleteConfirm = "klc_proj_del_yes"
+
+	// Auto Rotator unified — pick type
+	cbRotatorAddPickType      = "rotator_add_pick"
+	cbRotatorAddTypeCF        = "rotator_add_cf"
+	cbRotatorAddTypeKlikcepat = "rotator_add_klc"
+
+	// Klikcepat Rotator
+	cbKlikcepatRotPickLink = "klc_rot_picklink" // param = link ID
+	cbKlikcepatRotPickPool = "klc_rot_pickpool" // param = pool label
+	cbKlikcepatRotToggle   = "klc_rot_toggle"   // param = rotator ID
+	cbKlikcepatRotDelete   = "klc_rot_delete"   // param = rotator ID
+	cbKlikcepatRotForce    = "klc_rot_force"    // param = rotator ID
+)
+
 // ─── Menu Texts ───────────────────────────────────────────────────────────────
 
 const (
@@ -128,6 +176,20 @@ const (
 		"4️⃣ Ambil domain berikutnya dari *Pool Label* (yang kamu set di sini) → swap\n\n" +
 		"⚠️ *Tanpa Rotator config, auto-swap GAK jalan* — bot cuma kirim notif blocked.\n\n" +
 		"_Syarat: udah ada CF Rule + minimal 2 domain di pool Monitor._"
+
+	textKlikcepat = "🔗 *KLIKCEPAT — Bio Link & Short URL*\n\n" +
+		"Manage link & project di klikcepat.com langsung dari bot.\n\n" +
+		"*Yang bisa dilakuin:*\n" +
+		"• ➕ *Tambah Link* — bikin shortlink/biolink page baru\n" +
+		"• 📋 *List Link* — liat semua link kamu (paginated)\n" +
+		"• ✏️ *Edit Link* — update title/slug/target URL/project\n" +
+		"• 🗑 *Hapus Link* — delete link permanent\n" +
+		"• 📁 *Projects* — manage project grouping\n\n" +
+		"_💡 Auto-Swap setup ada di menu *🔄 Auto Rotator* (unified untuk CF + Klikcepat)._"
+
+	textKlikcepatProjects = "📁 *KLIKCEPAT — Projects*\n\n" +
+		"Group link berdasarkan project (misal: KONTAK, PROMO, RTP).\n\n" +
+		"Project bisa di-assign saat create link, dan bisa difilter di List Link."
 )
 
 // ─── Main Menu ────────────────────────────────────────────────────────────────
@@ -141,6 +203,9 @@ func mainMenu() *tele.ReplyMarkup {
 		),
 		m.Row(
 			m.Data("🔄 Auto Rotator", cbRotator),
+			m.Data("🔗 KLIKCEPAT", cbKlikcepat),
+		),
+		m.Row(
 			m.Data("🔧 Settings", cbSettings),
 		),
 	)
@@ -236,6 +301,62 @@ func rotatorMenu() *tele.ReplyMarkup {
 		),
 		m.Row(m.Data("🔙 Kembali", cbMain)),
 	)
+	return m
+}
+
+// ─── Klikcepat Menus ──────────────────────────────────────────────────────────
+
+func klikcepatMenu(botUsername string) *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	rows := []tele.Row{
+		m.Row(
+			m.Data("➕ Tambah Link", cbKlikcepatAdd),
+			m.Data("📋 List Link", cbKlikcepatList, "0"),
+		),
+		m.Row(
+			m.Data("✏️ Edit Link", cbKlikcepatEdit),
+			m.Data("🗑 Hapus Link", cbKlikcepatDelete),
+		),
+		m.Row(
+			m.Data("📁 Projects", cbKlikcepatProjects),
+		),
+	}
+	if botUsername != "" {
+		// Dashboard quick-access (URL button)
+		rows = append(rows, m.Row(
+			m.URL("🌐 Open Dashboard", "https://klikcepat.com"),
+		))
+	}
+	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbMain)))
+	m.Inline(rows...)
+	return m
+}
+
+func backToKlikcepat() *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	m.Inline(m.Row(m.Data("🔙 Kembali", cbKlikcepat)))
+	return m
+}
+
+func klikcepatProjectsMenu() *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("➕ Tambah Project", cbKlikcepatProjectAdd),
+			m.Data("📋 List Project", cbKlikcepatProjectList),
+		),
+		m.Row(
+			m.Data("✏️ Edit Project", cbKlikcepatProjectEdit),
+			m.Data("🗑 Hapus Project", cbKlikcepatProjectDelete),
+		),
+		m.Row(m.Data("🔙 Kembali", cbKlikcepat)),
+	)
+	return m
+}
+
+func backToKlikcepatProjects() *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	m.Inline(m.Row(m.Data("🔙 Kembali", cbKlikcepatProjects)))
 	return m
 }
 
