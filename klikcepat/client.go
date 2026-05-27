@@ -221,6 +221,7 @@ func (c *Client) UpdateLink(id int, fields map[string]string) (*Link, error) {
 
 // UpdateLinkLocation is the primary swap method — updates location_url only.
 // Lightweight: doesn't fetch full Link response, just verifies success.
+// Auto-retry 1x setelah 3 detik kalau HTTP 5xx (backend klikcepat sering glitch sesaat).
 func (c *Client) UpdateLinkLocation(id int, locationURL string) error {
 	if id <= 0 {
 		return fmt.Errorf("klikcepat: invalid link id %d", id)
@@ -228,7 +229,24 @@ func (c *Client) UpdateLinkLocation(id int, locationURL string) error {
 	form := url.Values{}
 	form.Set("location_url", locationURL)
 	_, err := c.do(http.MethodPost, fmt.Sprintf("/api/links/%d", id), form)
+	if err != nil && is5xxError(err) {
+		time.Sleep(3 * time.Second)
+		_, err = c.do(http.MethodPost, fmt.Sprintf("/api/links/%d", id), form)
+		if err == nil {
+			return nil
+		}
+		return fmt.Errorf("retry gagal: %w", err)
+	}
 	return err
+}
+
+// is5xxError true kalau error message mengandung "HTTP 5xx" (transient server error).
+func is5xxError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "HTTP 5")
 }
 
 func (c *Client) DeleteLink(id int) error {

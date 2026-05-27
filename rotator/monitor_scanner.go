@@ -668,15 +668,21 @@ func (ms *MonitorScanner) triggerKlikcepatAutoSwap(blockedDomain, blockedLabel s
 			continue
 		}
 		newLocationURL := buildSwapURL(link.LocationURL, nextDomain)
+		log.Printf("[KLIKCEPAT-SWAP] attempt link=%d (/%s): %q → %q",
+			rot.LinkID, rot.LinkURL, link.LocationURL, newLocationURL)
 		if err := ms.klikcepat.UpdateLinkLocation(rot.LinkID, newLocationURL); err != nil {
 			if ms.history != nil {
 				ms.history.LogSwap("klikcepat-scan", rot.Label, rot.LinkURL, link.LocationURL, newLocationURL, false, err.Error())
 			}
+			log.Printf("[KLIKCEPAT-SWAP] FAIL link=%d url=%q err=%v",
+				rot.LinkID, newLocationURL, err)
 			ms.notify.Notify(fmt.Sprintf(
 				"❌ *Klikcepat AUTO-SWAP GAGAL*\n"+
 					"🔗 Link: `/%s`\n"+
+					"📤 Dari: `%s`\n"+
+					"📥 Ke: `%s`\n"+
 					"⚠️ Error: %v",
-				rot.LinkURL, err))
+				rot.LinkURL, link.LocationURL, newLocationURL, err))
 			continue
 		}
 		if ms.history != nil {
