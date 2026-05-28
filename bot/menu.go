@@ -158,15 +158,26 @@ const (
 	cbKlcBlockRotToggle      = "klc_blk_toggle"    // param = rotator ID
 	cbKlcBlockRotDelete      = "klc_blk_delete"    // param = rotator ID
 
-	// Bulk Setup Rotator — pick type (CF or Klikcepat) then bulk picker
-	cbRotatorBulkTypeCF        = "rotator_bulk_cf"
-	cbRotatorBulkTypeKlikcepat = "rotator_bulk_klc"
-	cbKlikcepatRotBulkToggle   = "klc_bulk_tg"      // param = link ID
+	// Bulk Setup Rotator — pick type (CF or Klikcepat) then subtype
+	cbRotatorBulkTypeCF           = "rotator_bulk_cf"
+	cbRotatorBulkTypeKlikcepat    = "rotator_bulk_klc"
+	cbRotatorBulkTypeKlcShortlink = "rotator_bulk_klc_sl" // param = page
+	cbRotatorBulkTypeKlcBiolink   = "rotator_bulk_klc_bl" // param = page
+
+	cbKlikcepatRotBulkToggle   = "klc_bulk_tg" // param = link ID
 	cbKlikcepatRotBulkSelAll   = "klc_bulk_all"
 	cbKlikcepatRotBulkSelNone  = "klc_bulk_none"
 	cbKlikcepatRotBulkProceed  = "klc_bulk_proceed"
-	cbKlikcepatRotBulkPickPool = "klc_bulk_pool"    // param = pool label
-	cbKlikcepatRotBulkPage     = "klc_bulk_page"    // param = page index
+	cbKlikcepatRotBulkPickPool = "klc_bulk_pool" // param = pool label
+	cbKlikcepatRotBulkPage     = "klc_bulk_page" // param = page index
+
+	// Bulk Block Rotator (biolink multi-block)
+	cbKlcBlockBulkPickBiolink = "klc_blkb_pick" // param = biolink id
+	cbKlcBlockBulkToggle      = "klc_blkb_tg"   // param = block id
+	cbKlcBlockBulkSelAll      = "klc_blkb_all"
+	cbKlcBlockBulkSelNone     = "klc_blkb_none"
+	cbKlcBlockBulkProceed     = "klc_blkb_proceed"
+	cbKlcBlockBulkPickPool    = "klc_blkb_pool" // param = pool label
 )
 
 // ─── Menu Texts ───────────────────────────────────────────────────────────────

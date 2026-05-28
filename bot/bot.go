@@ -452,6 +452,22 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleRotatorBulkTypeCF(c)
 	case cbRotatorBulkTypeKlikcepat:
 		return h.handleRotatorBulkTypeKlikcepat(c)
+	case cbRotatorBulkTypeKlcShortlink:
+		return h.handleRotatorBulkTypeKlcShortlink(c)
+	case cbRotatorBulkTypeKlcBiolink:
+		return h.handleRotatorBulkTypeKlcBiolink(c)
+	case cbKlcBlockBulkPickBiolink:
+		return h.handleKlcBlockBulkPickBiolink(c)
+	case cbKlcBlockBulkToggle:
+		return h.handleKlcBlockBulkToggle(c)
+	case cbKlcBlockBulkSelAll:
+		return h.handleKlcBlockBulkSelectAll(c, true)
+	case cbKlcBlockBulkSelNone:
+		return h.handleKlcBlockBulkSelectAll(c, false)
+	case cbKlcBlockBulkProceed:
+		return h.handleKlcBlockBulkProceed(c)
+	case cbKlcBlockBulkPickPool:
+		return h.handleKlcBlockBulkPickPool(c)
 	case cbKlikcepatRotBulkToggle:
 		return h.handleKlikcepatRotBulkToggle(c)
 	case cbKlikcepatRotBulkSelAll:

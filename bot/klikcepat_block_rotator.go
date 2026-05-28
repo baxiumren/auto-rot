@@ -37,10 +37,17 @@ func (h *Handler) handleRotatorAddTypeKlcBiolink(c tele.Context) error {
 	}
 
 	c.Edit("⏳ Loading biolinks...", tele.ModeMarkdown)
-	links, err := h.klikcepat.ListLinks("biolink")
+	allLinks, err := h.klikcepat.ListLinks("biolink")
 	if err != nil {
 		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
 			backToRotator(), tele.ModeMarkdown)
+	}
+	// Client-side filter — Pixly API `?type=` filter sering di-ignore
+	var links []klikcepat.Link
+	for _, l := range allLinks {
+		if l.Type == "biolink" {
+			links = append(links, l)
+		}
 	}
 	if len(links) == 0 {
 		return c.Edit(

@@ -85,6 +85,10 @@ const (
 	StepKlcBlockRotPickBlock Step = "klc_blk_pickblock"
 	StepKlcBlockRotPickPool  Step = "klc_blk_pickpool"
 	StepKlcBlockRotLabel     Step = "klc_blk_label"
+
+	// Klikcepat Bulk Block Rotator
+	StepKlcBlockBulkPick Step = "klc_blkb_pick"
+	StepKlcBlockBulkPool Step = "klc_blkb_pool"
 )
 
 type Session struct {

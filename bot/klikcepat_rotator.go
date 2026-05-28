@@ -63,13 +63,17 @@ func (h *Handler) handleRotatorAddTypeKlcShortlink(c tele.Context) error {
 			backToRotator(), tele.ModeMarkdown)
 	}
 
-	// Filter: skip links yang udah punya rotator + cuma type="link" (sudah di-filter di API call)
+	// Filter: skip yang udah punya rotator + STRICT filter type="link" client-side
+	// (Pixly API ?type= filter sering di-ignore, jadi kita filter sendiri)
 	hasRotator := make(map[int]bool)
 	for _, rot := range h.klikcepatRotators.GetAll() {
 		hasRotator[rot.LinkID] = true
 	}
 	var picks []klikcepat.Link
 	for _, l := range links {
+		if l.Type != "link" {
+			continue
+		}
 		if hasRotator[int(l.ID)] {
 			continue
 		}

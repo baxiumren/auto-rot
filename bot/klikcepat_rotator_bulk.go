@@ -31,14 +31,37 @@ type klikcepatBulkPick struct {
 	Title string
 }
 
-// handleRotatorBulkTypeKlikcepat — entry from Bulk Setup pick-type screen
+// handleRotatorBulkTypeKlikcepat — entry from Bulk Setup pick-type screen.
+// Show subtype: BIOLINK BLOCK vs SHORTLINK
 func (h *Handler) handleRotatorBulkTypeKlikcepat(c tele.Context) error {
 	if !h.klikcepat.HasCredentials() {
 		return c.Edit(
 			"⚠️ *Klikcepat credentials belum di-set*\n\nSet dulu via *🔧 Settings → 🔗 Klikcepat*.",
 			backToRotator(), tele.ModeMarkdown)
 	}
-	c.Edit("⏳ Loading links dari klikcepat...", tele.ModeMarkdown)
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("📄 BIOLINK", cbRotatorBulkTypeKlcBiolink),
+			m.Data("🔗 SHORTLINK", cbRotatorBulkTypeKlcShortlink),
+		),
+		m.Row(m.Data("❌ Batal", cbRotator)),
+	)
+	return c.Edit(
+		"📦 *Bulk Setup Klikcepat — Pilih Tipe*\n\n"+
+			"• *📄 BIOLINK* — pick 1 biolink → multi-select blocks → 1 pool\n"+
+			"• *🔗 SHORTLINK* — multi-select shortlinks → 1 pool",
+		m, tele.ModeMarkdown)
+}
+
+// handleRotatorBulkTypeKlcShortlink — bulk shortlink picker (existing logic, renamed).
+func (h *Handler) handleRotatorBulkTypeKlcShortlink(c tele.Context) error {
+	if !h.klikcepat.HasCredentials() {
+		return c.Edit(
+			"⚠️ *Klikcepat credentials belum di-set*\n\nSet dulu via *🔧 Settings → 🔗 Klikcepat*.",
+			backToRotator(), tele.ModeMarkdown)
+	}
+	c.Edit("⏳ Loading shortlinks dari klikcepat...", tele.ModeMarkdown)
 
 	picks, err := h.fetchKlikcepatBulkPicks()
 	if err != nil {
@@ -47,11 +70,10 @@ func (h *Handler) handleRotatorBulkTypeKlikcepat(c tele.Context) error {
 	}
 	if len(picks) == 0 {
 		return c.Edit(
-			"✅ *Semua link klikcepat udah punya rotator*\n\nGak ada link tipe link/biolink yang belum ke-setup.\n\nHapus rotator lama via *📋 List Rotator* atau create link baru via *🔗 KLIKCEPAT → ➕ Tambah Link*.",
+			"✅ *Semua shortlink klikcepat udah punya rotator*\n\nHapus rotator lama via *📋 List Rotator* atau create shortlink baru via *🔗 KLIKCEPAT → ➕ Tambah Link*.",
 			backToRotator(), tele.ModeMarkdown)
 	}
 
-	// Cache available link IDs in session — biar Pilih Semua / fallback gampang
 	linkIDsStr := make([]string, len(picks))
 	for i, p := range picks {
 		linkIDsStr[i] = strconv.Itoa(int(p.ID))
@@ -69,11 +91,12 @@ func (h *Handler) handleRotatorBulkTypeKlikcepat(c tele.Context) error {
 	return h.renderKlikcepatBulkPicker(c, picks, map[int]bool{}, 0)
 }
 
-// fetchKlikcepatBulkPicks fetches links and filters out those that:
-//   - already have a klikcepat rotator
-//   - have a non-rotatable type (only "link" / "biolink" are valid swap targets)
+// fetchKlikcepatBulkPicks fetches SHORTLINK only (biolink punya bulk-flow sendiri).
+// Filter:
+//   - sudah punya rotator → skip
+//   - type != "link" → skip (biolink di-handle terpisah)
 func (h *Handler) fetchKlikcepatBulkPicks() ([]klikcepatBulkPick, error) {
-	links, err := h.klikcepat.ListLinks("")
+	links, err := h.klikcepat.ListLinks("link")
 	if err != nil {
 		return nil, err
 	}
@@ -83,10 +106,10 @@ func (h *Handler) fetchKlikcepatBulkPicks() ([]klikcepatBulkPick, error) {
 	}
 	var picks []klikcepatBulkPick
 	for _, l := range links {
-		if hasRotator[int(l.ID)] {
+		if l.Type != "link" {
 			continue
 		}
-		if l.Type != "link" && l.Type != "biolink" {
+		if hasRotator[int(l.ID)] {
 			continue
 		}
 		picks = append(picks, klikcepatBulkPick{
