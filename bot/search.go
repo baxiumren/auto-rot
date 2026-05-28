@@ -142,15 +142,110 @@ func (h *Handler) wizardGlobalSearch(c tele.Context, sess *Session) error {
 		sb.WriteString(fmt.Sprintf("🔴 Sedang dipantau (blocked sejak %s)\n\n", ts.Format("02/01 15:04")))
 	}
 
+	// 8. Cek Klikcepat domain mapping (klikcepat.com/lat/vip dll)
+	if userMap := h.creds.GetKlikcepatDomainMap(); len(userMap) > 0 {
+		var matchedDomIDs []int
+		for domID, host := range userMap {
+			if strings.EqualFold(host, query) {
+				matchedDomIDs = append(matchedDomIDs, domID)
+			}
+		}
+		if len(matchedDomIDs) > 0 {
+			found = true
+			sb.WriteString("🌐 *Klikcepat Domain Mapping:*\n")
+			for _, did := range matchedDomIDs {
+				sb.WriteString(fmt.Sprintf("✅ Domain ID *%d* → `%s`\n", did, userMap[did]))
+			}
+			sb.WriteString("\n")
+		}
+	}
+
+	// 9. Cek Klikcepat shortlink rotators (hit API per rotator)
+	if h.klikcepat.HasCredentials() {
+		klcSLRotators := h.klikcepatRotators.GetAll()
+		type slMatch struct {
+			Label       string
+			LinkSlug    string
+			LocationURL string
+			Pool        string
+		}
+		var slMatches []slMatch
+		for _, rot := range klcSLRotators {
+			link, err := h.klikcepat.GetLink(rot.LinkID)
+			if err != nil {
+				continue
+			}
+			if extractHostFromURL(link.LocationURL) == strings.ToLower(query) {
+				slMatches = append(slMatches, slMatch{
+					Label:       rot.Label,
+					LinkSlug:    rot.LinkURL,
+					LocationURL: link.LocationURL,
+					Pool:        rot.PoolLabel,
+				})
+			}
+		}
+		if len(slMatches) > 0 {
+			found = true
+			sb.WriteString("🔗 *Klikcepat Shortlink Rotator (sebagai destination):*\n")
+			for _, m := range slMatches {
+				sb.WriteString(fmt.Sprintf("✅ *%s* — `/%s` → `%s` (pool: *%s*)\n",
+					escapeMD(m.Label), escapeMD(m.LinkSlug), escapeMD(m.LocationURL), escapeMD(m.Pool)))
+			}
+			sb.WriteString("\n")
+		}
+
+		// 10. Cek Klikcepat biolink block rotators
+		klcBLRotators := h.klikcepatBlockRotators.GetAll()
+		type blMatch struct {
+			Label       string
+			BlockName   string
+			BiolinkSlug string
+			LocationURL string
+			Pool        string
+		}
+		var blMatches []blMatch
+		for _, rot := range klcBLRotators {
+			block, err := h.klikcepat.GetBiolinkBlock(rot.BlockID)
+			if err != nil {
+				continue
+			}
+			if extractHostFromURL(block.LocationURL) == strings.ToLower(query) {
+				blMatches = append(blMatches, blMatch{
+					Label:       rot.Label,
+					BlockName:   rot.BlockName,
+					BiolinkSlug: rot.BiolinkSlug,
+					LocationURL: block.LocationURL,
+					Pool:        rot.PoolLabel,
+				})
+			}
+		}
+		if len(blMatches) > 0 {
+			found = true
+			sb.WriteString("📄 *Klikcepat Biolink Block Rotator (sebagai destination):*\n")
+			for _, m := range blMatches {
+				name := m.BlockName
+				if name == "" {
+					name = "(no name)"
+				}
+				sb.WriteString(fmt.Sprintf("✅ *%s* — /%s 🔘 *%s* → `%s` (pool: *%s*)\n",
+					escapeMD(m.Label), escapeMD(m.BiolinkSlug), escapeMD(name), escapeMD(m.LocationURL), escapeMD(m.Pool)))
+			}
+			sb.WriteString("\n")
+		}
+	}
+
 	if !found {
 		sb.WriteString(fmt.Sprintf("❌ *`%s` tidak ditemukan di mana-mana.*\n\n", escapeMD(query)))
 		sb.WriteString("Tempat yang di-cek:\n")
 		sb.WriteString("• 📡 Monitor list (semua label)\n")
-		sb.WriteString("• ⚙️ CF Rule (sebagai source domain atau current target)\n")
-		sb.WriteString("• 🔄 Rotator config (pool)\n")
+		sb.WriteString("• ⚙️ CF Rule (source domain / current target)\n")
+		sb.WriteString("• 🔄 CF Rotator (pool)\n")
 		sb.WriteString("• 📌 Sticky-blocked list\n")
 		sb.WriteString("• 🔨 Force-block list\n")
-		sb.WriteString("• 🚨 Monitor scanner active alerts\n\n")
+		sb.WriteString("• 🚨 Monitor scanner active alerts\n")
+		sb.WriteString("• 🌐 Klikcepat domain mapping\n")
+		sb.WriteString("• 🔗 Klikcepat shortlink rotator (destination)\n")
+		sb.WriteString("• 📄 Klikcepat biolink block rotator (destination)\n\n")
 		sb.WriteString("_Coba ulangi pencarian via 🔍 CARI._")
 	} else {
 		sb.WriteString("━━━━━━━━━━━━━━━━━━\n")
