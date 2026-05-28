@@ -158,6 +158,12 @@ const (
 	cbKlcBlockRotToggle      = "klc_blk_toggle"    // param = rotator ID
 	cbKlcBlockRotDelete      = "klc_blk_delete"    // param = rotator ID
 
+	// List Rotator picker (split by type)
+	cbRotatorListCF        = "rot_list_cf"
+	cbRotatorListKlc       = "rot_list_klc"
+	cbRotatorListKlcSL     = "rot_list_klc_sl"
+	cbRotatorListKlcBL     = "rot_list_klc_bl"
+
 	// Bulk Setup Rotator — pick type (CF or Klikcepat) then subtype
 	cbRotatorBulkTypeCF           = "rotator_bulk_cf"
 	cbRotatorBulkTypeKlikcepat    = "rotator_bulk_klc"

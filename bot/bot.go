@@ -434,6 +434,14 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleRotatorPoolSelect(c)
 	case cbRotatorList:
 		return h.handleRotatorList(c)
+	case cbRotatorListCF:
+		return h.handleRotatorListCF(c)
+	case cbRotatorListKlc:
+		return h.handleRotatorListKlc(c)
+	case cbRotatorListKlcSL:
+		return h.handleRotatorListKlcShortlink(c)
+	case cbRotatorListKlcBL:
+		return h.handleRotatorListKlcBiolink(c)
 	case cbRotatorToggle:
 		return h.handleRotatorToggle(c)
 	case cbRotatorDelete:
@@ -690,6 +698,10 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardKlikcepatRotatorAddLabel(c, sess)
 	case StepKlcBlockRotLabel:
 		return h.wizardKlcBlockRotLabel(c, sess)
+	case StepKlcBlockBulkLabel:
+		return h.wizardKlcBlockBulkLabel(c, sess)
+	case StepKlikcepatRotBulkLabel:
+		return h.wizardKlikcepatRotBulkLabel(c, sess)
 
 	// Klikcepat Bulk Setup Rotator
 	case StepKlikcepatRotBulkPick, StepKlikcepatRotBulkPool:

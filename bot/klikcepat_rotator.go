@@ -217,7 +217,7 @@ func (h *Handler) handleKlikcepatRotPickPool(c tele.Context) error {
 	return nil
 }
 
-// handleKlikcepatRotToggle — pause/resume klikcepat rotator from List Rotator.
+// handleKlikcepatRotToggle — pause/resume klikcepat shortlink rotator.
 func (h *Handler) handleKlikcepatRotToggle(c tele.Context) error {
 	rotID := extractParam(c)
 	active, found := h.klikcepatRotators.Toggle(rotID)
@@ -229,10 +229,10 @@ func (h *Handler) handleKlikcepatRotToggle(c tele.Context) error {
 		state = "⏸ PAUSE"
 	}
 	c.Respond(&tele.CallbackResponse{Text: fmt.Sprintf("Rotator → %s", state)})
-	return h.handleRotatorList(c)
+	return h.handleRotatorListKlcShortlink(c)
 }
 
-// handleKlikcepatRotDelete — hapus klikcepat rotator from List Rotator.
+// handleKlikcepatRotDelete — hapus klikcepat shortlink rotator.
 func (h *Handler) handleKlikcepatRotDelete(c tele.Context) error {
 	rotID := extractParam(c)
 	rot, ok := h.klikcepatRotators.GetByID(rotID)
@@ -241,7 +241,7 @@ func (h *Handler) handleKlikcepatRotDelete(c tele.Context) error {
 	}
 	h.klikcepatRotators.Delete(rotID)
 	c.Respond(&tele.CallbackResponse{Text: fmt.Sprintf("🗑 %s dihapus", rot.Label)})
-	return h.handleRotatorList(c)
+	return h.handleRotatorListKlcShortlink(c)
 }
 
 func (h *Handler) wizardKlikcepatRotatorAddLabel(c tele.Context, sess *Session) error {

@@ -344,7 +344,7 @@ func (h *Handler) handleKlcBlockRotToggle(c tele.Context) error {
 		state = "⏸ PAUSE"
 	}
 	c.Respond(&tele.CallbackResponse{Text: fmt.Sprintf("Rotator → %s", state)})
-	return h.handleRotatorList(c)
+	return h.handleRotatorListKlcBiolink(c)
 }
 
 // handleKlcBlockRotDelete — delete block rotator.
@@ -356,5 +356,5 @@ func (h *Handler) handleKlcBlockRotDelete(c tele.Context) error {
 	}
 	h.klikcepatBlockRotators.Delete(rotID)
 	c.Respond(&tele.CallbackResponse{Text: fmt.Sprintf("🗑 %s dihapus", rot.Label)})
-	return h.handleRotatorList(c)
+	return h.handleRotatorListKlcBiolink(c)
 }

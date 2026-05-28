@@ -364,18 +364,48 @@ func (h *Handler) handleKlcBlockBulkPickPool(c tele.Context) error {
 		return c.Edit("⚠️ No selection", backToRotator(), tele.ModeMarkdown)
 	}
 
+	// Switch to label-prompt step
+	sess.Step = StepKlcBlockBulkLabel
+	sess.Data["pool"] = pool
+	sess.PromptMsg = c.Message()
+	h.sessions.Set(c.Sender().ID, sess)
+
+	prompt := fmt.Sprintf(
+		"📦 *Bulk Block — Step Akhir: Label Prefix*\n\n"+
+			"📄 Biolink: `%s`\n"+
+			"📂 Pool: *%s*\n"+
+			"✅ %d block dipilih\n\n"+
+			"Ketik *prefix label* buat tandain semua rotator ini.\n"+
+			"Label final: `{PREFIX}-{BLOCK_NAME}`\n\n"+
+			"*Contoh:* `MAHA` → jadi `MAHA-LOGIN`, `MAHA-DAFTAR`",
+		escapeMD(sess.Data["biolink_url"]), escapeMD(pool), len(selected))
+	return c.Edit(prompt, cancelMenu(), tele.ModeMarkdown)
+}
+
+// wizardKlcBlockBulkLabel — user typed label prefix, save N rotators.
+func (h *Handler) wizardKlcBlockBulkLabel(c tele.Context, sess *Session) error {
+	h.showTyping(c)
+	prefix := strings.ToUpper(strings.TrimSpace(c.Text()))
+	if prefix == "" {
+		return h.reply(c, "❌ Prefix kosong, coba lagi:", cancelMenu())
+	}
+
+	selected := parseSelectedInts(sess.Data[klcBlockBulkSelKey])
+	if len(selected) == 0 {
+		h.sessions.Delete(c.Sender().ID)
+		return h.reply(c, "⚠️ No selection", backToRotator(), tele.ModeMarkdown)
+	}
+
+	pool := sess.Data["pool"]
 	biolinkID, _ := strconv.Atoi(sess.Data["biolink_id"])
 	biolinkSlug := sess.Data["biolink_slug"]
 	biolinkDomain, _ := strconv.Atoi(sess.Data["biolink_domain"])
 	biolinkURL := sess.Data["biolink_url"]
 	h.sessions.Delete(c.Sender().ID)
 
-	c.Edit(fmt.Sprintf("⏳ Saving %d block rotator config(s)...", len(selected)), tele.ModeMarkdown)
-
-	// Reload blocks untuk dapet nama-nya
 	blocks, err := h.klikcepat.ListBiolinkBlocks(biolinkID)
 	if err != nil {
-		return c.Edit(fmt.Sprintf("❌ Gagal fetch blocks:\n```\n%s\n```", escapeMD(err.Error())),
+		return h.reply(c, fmt.Sprintf("❌ Gagal fetch blocks: %s", escapeMD(err.Error())),
 			backToRotator(), tele.ModeMarkdown)
 	}
 
@@ -393,8 +423,9 @@ func (h *Handler) handleKlcBlockBulkPickPool(c tele.Context) error {
 		if blockName == "" {
 			blockName = fmt.Sprintf("BLK-%d", b.ID)
 		}
-		// Auto-label: BLK-{slug}-{block_name}
-		label := strings.ToUpper("BLK-" + biolinkSlug + "-" + strings.ReplaceAll(blockName, " ", ""))
+		// Label: {PREFIX}-{BLOCK_NAME}
+		safeName := strings.ToUpper(strings.ReplaceAll(blockName, " ", ""))
+		label := prefix + "-" + safeName
 		if len(label) > 40 {
 			label = label[:40]
 		}
@@ -416,5 +447,5 @@ func (h *Handler) handleKlcBlockBulkPickPool(c tele.Context) error {
 		created++
 	}
 	sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d created, %d skipped", created, skipped))
-	return c.Edit(sb.String(), backToRotator(), tele.ModeMarkdown)
+	return h.reply(c, sb.String(), backToRotator(), tele.ModeMarkdown)
 }

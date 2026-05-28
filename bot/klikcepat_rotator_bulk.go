@@ -338,32 +338,62 @@ func (h *Handler) handleKlikcepatRotBulkPickPool(c tele.Context) error {
 	if !ok || sess.Step != StepKlikcepatRotBulkPool {
 		return c.Respond(&tele.CallbackResponse{Text: "⚠️ Session expired", ShowAlert: true})
 	}
-
 	selected := parseSelectedInts(sess.Data[klikcepatBulkSelKey])
-	h.sessions.Delete(c.Sender().ID)
-
 	if len(selected) == 0 {
+		h.sessions.Delete(c.Sender().ID)
 		return c.Edit("⚠️ No selection", backToRotator(), tele.ModeMarkdown)
 	}
 
-	c.Edit(fmt.Sprintf("⏳ Saving %d rotator config(s)...", len(selected)), tele.ModeMarkdown)
+	// Switch to label prompt step
+	sess.Step = StepKlikcepatRotBulkLabel
+	sess.Data["pool"] = pool
+	sess.PromptMsg = c.Message()
+	h.sessions.Set(c.Sender().ID, sess)
+
+	return c.Edit(
+		fmt.Sprintf(
+			"📦 *Bulk Shortlink — Step Akhir: Label Prefix*\n\n"+
+				"📂 Pool: *%s*\n"+
+				"✅ %d shortlink dipilih\n\n"+
+				"Ketik *prefix label* buat tandain semua rotator ini.\n"+
+				"Label final: `{PREFIX}-{SLUG}`\n\n"+
+				"*Contoh:* `MAHA` → jadi `MAHA-RTP-MAHASLOT`, `MAHA-POLA-RTP-MAHA`",
+			escapeMD(pool), len(selected)),
+		cancelMenu(), tele.ModeMarkdown)
+}
+
+// wizardKlikcepatRotBulkLabel — user typed prefix, save N shortlink rotators.
+func (h *Handler) wizardKlikcepatRotBulkLabel(c tele.Context, sess *Session) error {
+	h.showTyping(c)
+	prefix := strings.ToUpper(strings.TrimSpace(c.Text()))
+	if prefix == "" {
+		return h.reply(c, "❌ Prefix kosong, coba lagi:", cancelMenu())
+	}
+
+	selected := parseSelectedInts(sess.Data[klikcepatBulkSelKey])
+	if len(selected) == 0 {
+		h.sessions.Delete(c.Sender().ID)
+		return h.reply(c, "⚠️ No selection", backToRotator(), tele.ModeMarkdown)
+	}
+	pool := sess.Data["pool"]
+	h.sessions.Delete(c.Sender().ID)
+
 	links, err := h.klikcepat.ListLinks("")
 	if err != nil {
-		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
+		return h.reply(c, fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
 			backToRotator(), tele.ModeMarkdown)
 	}
 
 	created := 0
 	skipped := 0
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📦 *Bulk Setup — Result*\n\nPool: *%s*\n\n", escapeMD(pool)))
+	sb.WriteString(fmt.Sprintf("📦 *Bulk Shortlink Rotator — Result*\n\nPool: *%s*\n\n", escapeMD(pool)))
 
 	for _, l := range links {
 		if !selected[int(l.ID)] {
 			continue
 		}
-		// Auto-generate label: TYPE-SLUG (uppercased). Truncate if too long.
-		label := strings.ToUpper(l.Type) + "-" + strings.ToUpper(l.URL)
+		label := prefix + "-" + strings.ToUpper(l.URL)
 		if len(label) > 40 {
 			label = label[:40]
 		}
@@ -382,10 +412,8 @@ func (h *Handler) handleKlikcepatRotBulkPickPool(c tele.Context) error {
 		sb.WriteString(fmt.Sprintf("✅ `%s` → label `%s`\n", escapeMD(l.URL), escapeMD(label)))
 		created++
 	}
-
 	sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d created, %d skipped", created, skipped))
-
-	return c.Edit(sb.String(), backToRotator(), tele.ModeMarkdown)
+	return h.reply(c, sb.String(), backToRotator(), tele.ModeMarkdown)
 }
 
 // ─── Helpers (selected set serialization for klikcepat bulk) ─────────────────

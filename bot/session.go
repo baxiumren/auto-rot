@@ -87,8 +87,13 @@ const (
 	StepKlcBlockRotLabel     Step = "klc_blk_label"
 
 	// Klikcepat Bulk Block Rotator
-	StepKlcBlockBulkPick Step = "klc_blkb_pick"
-	StepKlcBlockBulkPool Step = "klc_blkb_pool"
+	StepKlcBlockBulkPick  Step = "klc_blkb_pick"
+	StepKlcBlockBulkPool  Step = "klc_blkb_pool"
+	StepKlcBlockBulkLabel Step = "klc_blkb_label"
+
+	// Bulk label prompts (user kasih prefix label setelah pilih pool)
+	StepRotatorBulkLabel      Step = "rotator_bulk_label"
+	StepKlikcepatRotBulkLabel Step = "klc_bulk_label"
 )
 
 type Session struct {
