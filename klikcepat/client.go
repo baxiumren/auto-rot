@@ -346,6 +346,27 @@ func (c *Client) DeleteProject(id int) error {
 
 // ─── Domains API ──────────────────────────────────────────────────────────────
 
+// BuildShortlinkURL constructs the public-facing URL for a link.
+// Priority:
+//   1. userMap (manual mapping dari Settings) — paling reliable buat shared domain
+//   2. apiDomains (kalau sub-user punya akses /api/domains)
+//   3. domain_id = 0 → klikcepat.com default
+//   4. domain_id > 0 tapi gak ada mapping → fallback klikcepat.com
+func BuildShortlinkURL(l Link, userMap map[int]string, apiDomains map[int]Domain) string {
+	linkDomainID := int(l.DomainID)
+	if host, ok := userMap[linkDomainID]; ok && host != "" {
+		return fmt.Sprintf("https://%s/%s", host, l.URL)
+	}
+	if d, ok := apiDomains[linkDomainID]; ok && d.Host != "" {
+		scheme := d.Scheme
+		if scheme == "" {
+			scheme = "https"
+		}
+		return fmt.Sprintf("%s://%s/%s", scheme, d.Host, l.URL)
+	}
+	return fmt.Sprintf("https://klikcepat.com/%s", l.URL)
+}
+
 // ListDomains returns user's custom domains. Used for full-URL display in lists.
 // Hard cap 1000 (same pagination limit as other endpoints).
 func (c *Client) ListDomains() ([]Domain, error) {

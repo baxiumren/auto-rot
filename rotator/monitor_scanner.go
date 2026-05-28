@@ -69,6 +69,7 @@ type MonitorScanner struct {
 
 	klikcepat         KlikcepatUpdater
 	klikcepatRotators *store.KlikcepatRotatorStore
+	klcShortlinkURL   func(klikcepat.Link) string // builder buat display URL (domain + slug); nil-safe
 
 	mu      sync.Mutex
 	blocked map[string]*blockCycle
@@ -119,6 +120,13 @@ func NewMonitorScanner(
 		blocked:           make(map[string]*blockCycle),
 		interval:          interval,
 	}
+}
+
+// SetKlikcepatShortlinkURLBuilder injects a closure that builds the public shortlink URL
+// (domain + slug) from a klikcepat.Link, used for display in swap notifications.
+// Called from main.go after both klikcepat client + credentials store ready.
+func (ms *MonitorScanner) SetKlikcepatShortlinkURLBuilder(fn func(klikcepat.Link) string) {
+	ms.klcShortlinkURL = fn
 }
 
 func (ms *MonitorScanner) SetInterval(d time.Duration) {
@@ -712,16 +720,24 @@ func (ms *MonitorScanner) triggerKlikcepatAutoSwap(blockedDomain, blockedLabel s
 		if ms.history != nil {
 			ms.history.LogSwap("klikcepat-scan", rot.Label, rot.LinkURL, link.LocationURL, newLocationURL, true, "")
 		}
+		// Build full shortlink URL (domain + slug) untuk display di notif.
+		// Fallback ke /slug kalau builder belum di-set.
+		shortlinkDisplay := "/" + rot.LinkURL
+		if ms.klcShortlinkURL != nil {
+			if full := ms.klcShortlinkURL(*link); full != "" {
+				shortlinkDisplay = full
+			}
+		}
 		ms.notify.Notify(fmt.Sprintf(
 			"⚡ *KLIKCEPAT AUTO-SWAP*\n"+
-				"🔗 Link: `/%s` (%s)\n"+
+				"🔗 Link: %s (%s)\n"+
 				"🚫 Sebelum: `%s` *(BLOCKED — label: %s)*\n"+
 				"   URL: `%s`\n"+
 				"✅ Sekarang: `%s`\n"+
 				"   URL: `%s`\n"+
 				"📂 Pool: `%s`\n"+
 				"🕐 %s",
-			rot.LinkURL, link.Type,
+			shortlinkDisplay, link.Type,
 			blockedDomain, blockedLabel, link.LocationURL,
 			nextDomain, newLocationURL,
 			rot.PoolLabel,

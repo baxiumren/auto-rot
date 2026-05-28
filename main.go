@@ -105,6 +105,13 @@ func main() {
 	// Pool untuk swap diambil dari Rotator config (CFRule → PoolLabel).
 	monScanner := rotator.NewMonitorScanner(cf, domains, cfrules, rotators, notify, cfg.CheckInterval, history, klc, klcRotators)
 
+	// Inject shortlink URL builder ke monitor scanner (pakai user domain map dari creds).
+	// Tiap kali notif swap, builder dipanggil → balikin URL lengkap kayak https://klikcepat.lat/slug.
+	monScanner.SetKlikcepatShortlinkURLBuilder(func(l klikcepat.Link) string {
+		userMap := creds.GetKlikcepatDomainMap()
+		return klikcepat.BuildShortlinkURL(l, userMap, nil)
+	})
+
 	// Handler bot
 	h := bot.New(b, cfg, domains, cfrules, rotators, creds, cf, rotSvc, monScanner, history, klc, klcRotators)
 	h.Register()
