@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"bongbot/klikcepat"
 	"bongbot/store"
 	tele "gopkg.in/telebot.v3"
 )
@@ -260,6 +261,16 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 		sb.WriteString(fmt.Sprintf("\n_%d CF rotator (%d aktif)_\n", len(cfRotators), activeCF))
 	}
 
+	userMap := h.creds.GetKlikcepatDomainMap()
+
+	// Helper: build full klikcepat URL from domain_id + slug.
+	buildKlcURL := func(domainID int, slug string) string {
+		if host, ok := userMap[domainID]; ok && host != "" {
+			return fmt.Sprintf("https://%s/%s", host, slug)
+		}
+		return fmt.Sprintf("https://klikcepat.com/%s", slug)
+	}
+
 	if len(klcRotators) > 0 {
 		sb.WriteString("\n═══ 🔗 KLIKCEPAT SHORTLINK ═══\n")
 		activeKLC := 0
@@ -272,8 +283,15 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 			} else {
 				activeKLC++
 			}
+			// Try to fetch link from API utk dapet domain_id terkini (fallback slug)
+			displayURL := "/" + rot.LinkURL
+			if h.klikcepat != nil && h.klikcepat.HasCredentials() {
+				if link, err := h.klikcepat.GetLink(rot.LinkID); err == nil {
+					displayURL = klikcepat.BuildShortlinkURL(*link, userMap, nil)
+				}
+			}
 			sb.WriteString(fmt.Sprintf("%d. *%s* %s\n", i+1, escapeMD(rot.Label), status))
-			sb.WriteString(fmt.Sprintf("   🔗 Link: `/%s`\n", escapeMD(rot.LinkURL)))
+			sb.WriteString(fmt.Sprintf("   🔗 Link: `%s`\n", escapeMD(displayURL)))
 			sb.WriteString(fmt.Sprintf("   📂 Pool: *%s*\n", escapeMD(rot.PoolLabel)))
 			rows = append(rows, m.Row(
 				m.Data(fmt.Sprintf("🔗 %s", truncate(rot.Label, 18)), cbNoop),
@@ -300,8 +318,9 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 			if blockName == "" {
 				blockName = "(no name)"
 			}
+			biolinkURL := buildKlcURL(rot.BiolinkDomain, rot.BiolinkSlug)
 			sb.WriteString(fmt.Sprintf("%d. *%s* %s\n", i+1, escapeMD(rot.Label), status))
-			sb.WriteString(fmt.Sprintf("   📄 Biolink: `/%s`\n", escapeMD(rot.BiolinkSlug)))
+			sb.WriteString(fmt.Sprintf("   📄 Biolink: `%s`\n", escapeMD(biolinkURL)))
 			sb.WriteString(fmt.Sprintf("   🔘 Block: *%s*\n", escapeMD(blockName)))
 			sb.WriteString(fmt.Sprintf("   📂 Pool: *%s*\n", escapeMD(rot.PoolLabel)))
 			rows = append(rows, m.Row(
