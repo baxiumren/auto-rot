@@ -1,12 +1,11 @@
 <div align="center">
 
 ```
-██████╗  ██████╗ ███╗   ██╗ ██████╗     ██████╗  ██████╗ ████████╗
-██╔══██╗██╔═══██╗████╗  ██║██╔════╝     ██╔══██╗██╔═══██╗╚══██╔══╝
-██████╔╝██║   ██║██╔██╗ ██║██║  ███╗    ██████╔╝██║   ██║   ██║
-██╔══██╗██║   ██║██║╚██╗██║██║   ██║    ██╔══██╗██║   ██║   ██║
-██████╔╝╚██████╔╝██║ ╚████║╚██████╔╝    ██████╔╝╚██████╔╝   ██║
-╚═════╝  ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝     ╚═════╝  ╚═════╝    ╚═╝
+ ____   ___  _   _  ____     ____   ___  _____ 
+| __ ) / _ \| \ | |/ ___|   | __ ) / _ \|_   _|
+|  _ \| | | |  \| | |  _    |  _ \| | | | | |  
+| |_) | |_| | |\  | |_| |   | |_) | |_| | | |  
+|____/ \___/|_| \_|\____|   |____/ \___/  |_|  
 ```
 
 # 🎰🚀 BONG BOT — ALL IN ONE FITUR BOT PALING GACOR! 🔥✨
@@ -14,7 +13,7 @@
 **Telegram bot serba bisa buat para affiliate Indonesia.**
 Auto-rotate domain Cloudflare + Klikcepat saat kena nawala — biar duit gak putus! 💸
 
-[![Version](https://img.shields.io/badge/version-v1.0-blue)](https://github.com/baxiumren/auto-rot/releases)
+[![Version](https://img.shields.io/badge/version-v1.1-blue)](https://github.com/baxiumren/auto-rot/releases)
 [![Go](https://img.shields.io/badge/go-1.21+-cyan)](https://go.dev)
 [![License](https://img.shields.io/badge/license-MIT-green)](#-license)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-orange)]()
