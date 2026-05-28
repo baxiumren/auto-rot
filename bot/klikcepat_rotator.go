@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"bongbot/klikcepat"
 	"bongbot/store"
 
 	tele "gopkg.in/telebot.v3"
@@ -17,9 +18,31 @@ import (
 
 const klikcepatRotatorPerPage = 10
 
-// handleRotatorAddTypeKlikcepat — entry from Auto Rotator menu after user picks "KLIKCEPAT".
-// Param: page index (default 0).
+// handleRotatorAddTypeKlikcepat — after KLIKCEPAT picked, show subtype picker:
+// BIOLINK (block rotator) vs SHORTLINK (link location_url rotator).
 func (h *Handler) handleRotatorAddTypeKlikcepat(c tele.Context) error {
+	if !h.klikcepat.HasCredentials() {
+		return c.Edit(
+			"⚠️ *Klikcepat credentials belum di-set*\n\nSet dulu via *🔧 Settings → 🔗 Klikcepat*.",
+			backToRotator(), tele.ModeMarkdown)
+	}
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("📄 BIOLINK", cbRotatorAddTypeKlcBiolink),
+			m.Data("🔗 SHORTLINK", cbRotatorAddTypeKlcShortlink),
+		),
+		m.Row(m.Data("❌ Batal", cbRotator)),
+	)
+	return c.Edit(
+		"🔄 *Setup Klikcepat Rotator — Pilih Tipe*\n\n"+
+			"• 📄 *BIOLINK* — rotate destination button di dalem biolink (LOGIN, DAFTAR, dll)\n"+
+			"• 🔗 *SHORTLINK* — rotate destination dari shortlink (klikcepat.com/slug → external)",
+		m, tele.ModeMarkdown)
+}
+
+// handleRotatorAddTypeKlcShortlink — pick shortlink (existing flow, dengan full URL display).
+func (h *Handler) handleRotatorAddTypeKlcShortlink(c tele.Context) error {
 	if !h.klikcepat.HasCredentials() {
 		return c.Edit(
 			"⚠️ *Klikcepat credentials belum di-set*\n\nSet dulu via *🔧 Settings → 🔗 Klikcepat*.",
@@ -33,40 +56,33 @@ func (h *Handler) handleRotatorAddTypeKlikcepat(c tele.Context) error {
 		page, _ = strconv.Atoi(pageStr)
 	}
 
-	c.Edit("⏳ Loading links dari klikcepat...", tele.ModeMarkdown)
-	links, err := h.klikcepat.ListLinks("")
+	c.Edit("⏳ Loading shortlinks dari klikcepat...", tele.ModeMarkdown)
+	links, err := h.klikcepat.ListLinks("link")
 	if err != nil {
 		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
 			backToRotator(), tele.ModeMarkdown)
 	}
 
-	// Filter: skip links yang udah punya rotator + skip non-rotatable types
+	// Filter: skip links yang udah punya rotator + cuma type="link" (sudah di-filter di API call)
 	hasRotator := make(map[int]bool)
 	for _, rot := range h.klikcepatRotators.GetAll() {
 		hasRotator[rot.LinkID] = true
 	}
-	type pick struct {
-		ID    int
-		URL   string
-		Type  string
-		Title string
-	}
-	var picks []pick
+	var picks []klikcepat.Link
 	for _, l := range links {
 		if hasRotator[int(l.ID)] {
 			continue
 		}
-		if l.Type != "link" && l.Type != "biolink" {
-			continue
-		}
-		picks = append(picks, pick{int(l.ID), l.URL, l.Type, l.Title})
+		picks = append(picks, l)
 	}
 	if len(picks) == 0 {
 		return c.Edit(
-			"✅ Semua link klikcepat udah punya rotator (atau gak ada link tipe link/biolink).\n\n"+
-				"Hapus rotator lama via *📋 List Rotator* atau create link baru via *🔗 KLIKCEPAT → ➕ Tambah Link*.",
+			"✅ Semua shortlink klikcepat udah punya rotator.\n\n"+
+				"Hapus rotator lama via *📋 List Rotator* atau create shortlink baru via *🔗 KLIKCEPAT → ➕ Tambah Link*.",
 			backToRotator(), tele.ModeMarkdown)
 	}
+
+	userMap := h.creds.GetKlikcepatDomainMap()
 
 	// Pagination
 	total := len(picks)
@@ -87,36 +103,30 @@ func (h *Handler) handleRotatorAddTypeKlikcepat(c tele.Context) error {
 	var rows []tele.Row
 	for i := start; i < end; i++ {
 		p := picks[i]
-		typeIcon := "🔗"
-		if p.Type == "biolink" {
-			typeIcon = "📄"
-		}
-		// Label: TYPE_ICON + UPPERCASE_SLUG (same as List Link display)
-		label := strings.ToUpper(p.URL)
-		if label == "" {
-			label = "(no slug)"
-		}
+		fullURL := klikcepat.BuildShortlinkURL(p, userMap, nil)
+		display := strings.TrimPrefix(fullURL, "https://")
+		display = strings.TrimPrefix(display, "http://")
 		rows = append(rows, m.Row(m.Data(
-			fmt.Sprintf("%s %s", typeIcon, truncate(label, 40)),
-			cbKlikcepatRotPickLink, strconv.Itoa(p.ID))))
+			fmt.Sprintf("🔗 %s", truncate(display, 45)),
+			cbKlikcepatRotPickLink, strconv.Itoa(int(p.ID)))))
 	}
 
 	// Pagination row
 	var navRow tele.Row
 	if page > 0 {
-		navRow = append(navRow, m.Data("⬅️ Prev", cbRotatorAddTypeKlikcepat, strconv.Itoa(page-1)))
+		navRow = append(navRow, m.Data("⬅️ Prev", cbRotatorAddTypeKlcShortlink, strconv.Itoa(page-1)))
 	}
 	navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
 	if page < totalPages-1 {
-		navRow = append(navRow, m.Data("Next ➡️", cbRotatorAddTypeKlikcepat, strconv.Itoa(page+1)))
+		navRow = append(navRow, m.Data("Next ➡️", cbRotatorAddTypeKlcShortlink, strconv.Itoa(page+1)))
 	}
 	rows = append(rows, navRow)
 	rows = append(rows, m.Row(m.Data("❌ Batal", cbCancel)))
 	m.Inline(rows...)
 
 	text := fmt.Sprintf(
-		"🔄 *Setup Klikcepat Rotator — Step 1/3: Pick Link*\n\n"+
-			"Page %d/%d • Total %d link belum rotator",
+		"🔗 *Setup Shortlink Rotator — Step 1/3: Pick Shortlink*\n\n"+
+			"Page %d/%d • Total %d shortlink belum rotator",
 		page+1, totalPages, total)
 	return c.Edit(text, m, tele.ModeMarkdown)
 }
@@ -141,12 +151,16 @@ func (h *Handler) handleKlikcepatRotPickLink(c tele.Context) error {
 			backToRotator(), tele.ModeMarkdown)
 	}
 
+	userMap := h.creds.GetKlikcepatDomainMap()
+	fullURL := klikcepat.BuildShortlinkURL(*link, userMap, nil)
+
 	h.sessions.Set(c.Sender().ID, &Session{
 		Step: StepKlikcepatRotatorPickPool,
 		Data: map[string]string{
 			"link_id":   linkIDStr,
 			"link_url":  link.URL,
 			"link_type": link.Type,
+			"link_full": fullURL,
 		},
 		PromptMsg: c.Message(),
 	})
@@ -163,11 +177,11 @@ func (h *Handler) handleKlikcepatRotPickLink(c tele.Context) error {
 	m.Inline(rows...)
 
 	prompt := fmt.Sprintf(
-		"🔄 *Setup Klikcepat Rotator — Step 2/3: Pick Pool*\n\n"+
-			"🔗 Link: `/%s` (%s)\n"+
+		"🔗 *Setup Shortlink Rotator — Step 2/3: Pick Pool*\n\n"+
+			"🔗 Link: `%s`\n"+
 			"🎯 Current target: `%s`\n\n"+
 			"Pilih pool domain (dari Monitor):",
-		escapeMD(link.URL), link.Type, escapeMD(link.LocationURL))
+		escapeMD(fullURL), escapeMD(link.LocationURL))
 	return c.Edit(prompt, m, tele.ModeMarkdown)
 }
 
@@ -184,13 +198,17 @@ func (h *Handler) handleKlikcepatRotPickPool(c tele.Context) error {
 	sess.Step = StepKlikcepatRotatorAddLabel
 	h.sessions.Set(c.Sender().ID, sess)
 
+	displayURL := sess.Data["link_full"]
+	if displayURL == "" {
+		displayURL = "/" + sess.Data["link_url"]
+	}
 	prompt := fmt.Sprintf(
-		"🔄 *Step 3/3: Label Rotator*\n\n"+
-			"🔗 Link: `/%s`\n"+
+		"🔗 *Step 3/3: Label Rotator*\n\n"+
+			"🔗 Link: `%s`\n"+
 			"📂 Pool: *%s*\n\n"+
 			"Ketik label untuk rotator ini (bebas, untuk identifikasi):\n\n"+
 			"*Contoh:* `PROMO-MAHA-ROT`",
-		escapeMD(sess.Data["link_url"]), escapeMD(pool))
+		escapeMD(displayURL), escapeMD(pool))
 	h.bot.Edit(sess.PromptMsg, prompt, cancelMenu(), tele.ModeMarkdown)
 	return nil
 }
@@ -232,6 +250,7 @@ func (h *Handler) wizardKlikcepatRotatorAddLabel(c tele.Context, sess *Session) 
 	pool := sess.Data["pool"]
 	linkURL := sess.Data["link_url"]
 	linkType := sess.Data["link_type"]
+	linkFull := sess.Data["link_full"]
 	h.sessions.Delete(c.Sender().ID)
 
 	rot := store.KlikcepatRotator{
@@ -245,13 +264,17 @@ func (h *Handler) wizardKlikcepatRotatorAddLabel(c tele.Context, sess *Session) 
 		return h.reply(c, fmt.Sprintf("❌ Gagal save rotator: %s", escapeMD(err.Error())),
 			backToRotator(), tele.ModeMarkdown)
 	}
+	displayURL := linkFull
+	if displayURL == "" {
+		displayURL = "/" + linkURL
+	}
 	return h.reply(c,
 		fmt.Sprintf(
-			"✅ *Klikcepat Rotator dibuat!*\n\n"+
+			"✅ *Shortlink Rotator dibuat!*\n\n"+
 				"📛 Label: *%s*\n"+
-				"🔗 Link: `/%s`\n"+
+				"🔗 Link: `%s`\n"+
 				"📂 Pool: *%s*\n"+
 				"🟢 Active",
-			label, escapeMD(linkURL), escapeMD(pool)),
+			label, escapeMD(displayURL), escapeMD(pool)),
 		backToRotator(), tele.ModeMarkdown)
 }

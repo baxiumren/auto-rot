@@ -67,9 +67,10 @@ type MonitorScanner struct {
 	chk      *checker.Checker
 	history  *store.HistoryStore
 
-	klikcepat         KlikcepatUpdater
-	klikcepatRotators *store.KlikcepatRotatorStore
-	klcShortlinkURL   func(klikcepat.Link) string // builder buat display URL (domain + slug); nil-safe
+	klikcepat              KlikcepatUpdater
+	klikcepatRotators      *store.KlikcepatRotatorStore
+	klikcepatBlockRotators *store.KlikcepatBlockRotatorStore
+	klcShortlinkURL        func(klikcepat.Link) string // builder buat display URL (domain + slug); nil-safe
 
 	mu      sync.Mutex
 	blocked map[string]*blockCycle
@@ -94,6 +95,8 @@ type KlikcepatUpdater interface {
 	HasCredentials() bool
 	GetLink(id int) (*klikcepat.Link, error)
 	UpdateLinkLocation(id int, locationURL string) error
+	GetBiolinkBlock(id int) (*klikcepat.BiolinkBlock, error)
+	UpdateBiolinkBlockLocation(id int, locationURL string) error
 }
 
 func NewMonitorScanner(
@@ -127,6 +130,11 @@ func NewMonitorScanner(
 // Called from main.go after both klikcepat client + credentials store ready.
 func (ms *MonitorScanner) SetKlikcepatShortlinkURLBuilder(fn func(klikcepat.Link) string) {
 	ms.klcShortlinkURL = fn
+}
+
+// SetKlikcepatBlockRotators injects the block rotator store for biolink button auto-swap.
+func (ms *MonitorScanner) SetKlikcepatBlockRotators(s *store.KlikcepatBlockRotatorStore) {
+	ms.klikcepatBlockRotators = s
 }
 
 func (ms *MonitorScanner) SetInterval(d time.Duration) {
@@ -333,6 +341,9 @@ func (ms *MonitorScanner) scanOnce() {
 			if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
 				ms.triggerKlikcepatAutoSwap(e.domain, e.label)
 			}
+			if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatBlockRotators != nil {
+				ms.triggerKlikcepatBlockAutoSwap(e.domain, e.label)
+			}
 			continue
 		}
 		if ms.chk.IsForceBlocked(e.domain) {
@@ -340,6 +351,9 @@ func (ms *MonitorScanner) scanOnce() {
 			ms.ensureBlockedTracked(e.domain, e.label)
 			if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
 				ms.triggerKlikcepatAutoSwap(e.domain, e.label)
+			}
+			if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatBlockRotators != nil {
+				ms.triggerKlikcepatBlockAutoSwap(e.domain, e.label)
 			}
 			continue
 		}
@@ -435,6 +449,10 @@ func (ms *MonitorScanner) checkOne(domain, label string) {
 		// Decoupled dari CF — biar kalau CF gak ada rotator, klikcepat tetep jalan.
 		if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
 			ms.triggerKlikcepatAutoSwap(domain, label)
+		}
+		// Biolink block rotator (target biolinks_blocks.location_url)
+		if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatBlockRotators != nil {
+			ms.triggerKlikcepatBlockAutoSwap(domain, label)
 		}
 
 	case "SAFE":
@@ -747,6 +765,108 @@ func (ms *MonitorScanner) triggerKlikcepatAutoSwap(blockedDomain, blockedLabel s
 	}
 	if matched == 0 && activeCount > 0 {
 		log.Printf("[KLIKCEPAT-SWAP] no rotator matched blocked=%s (cek apakah location_url benar2 pake domain itu)", blockedDomain)
+	}
+}
+
+// triggerKlikcepatBlockAutoSwap — scan biolink block rotators, swap block.location_url
+// if matches blocked domain. Same pattern as shortlink swap but targets biolinks_blocks table.
+func (ms *MonitorScanner) triggerKlikcepatBlockAutoSwap(blockedDomain, blockedLabel string) {
+	rotators := ms.klikcepatBlockRotators.GetAll()
+	activeCount := 0
+	for _, r := range rotators {
+		if r.Active {
+			activeCount++
+		}
+	}
+	log.Printf("[KLC-BLOCK-SWAP] check blocked=%s vs %d block rotator (%d aktif)",
+		blockedDomain, len(rotators), activeCount)
+
+	matched := 0
+	for _, rot := range rotators {
+		if !rot.Active {
+			continue
+		}
+		block, err := ms.klikcepat.GetBiolinkBlock(rot.BlockID)
+		if err != nil {
+			log.Printf("[KLC-BLOCK-SWAP] gagal fetch block %d (%s): %v", rot.BlockID, rot.Label, err)
+			continue
+		}
+		currentHost := extractHost(block.LocationURL)
+		log.Printf("[KLC-BLOCK-SWAP] rotator=%s block=%d (%s) host=%q vs blocked=%q",
+			rot.Label, rot.BlockID, rot.BlockName, currentHost, blockedDomain)
+		if !strings.EqualFold(currentHost, blockedDomain) {
+			continue
+		}
+		matched++
+
+		pool := ms.domains.GetByLabel(rot.PoolLabel)
+		nextDomain := ms.pickNextSafe(pool, blockedDomain)
+		if nextDomain == "" {
+			ms.notify.Notify(fmt.Sprintf(
+				"🚨 *Klikcepat block swap GAGAL — pool kosong*\n"+
+					"📄 Biolink slug: `/%s`\n"+
+					"🔘 Block: `%s`\n"+
+					"📂 Pool: `%s` (%d domain — semua blocked)\n"+
+					"🚫 Blocked: `%s`",
+				rot.BiolinkSlug, rot.BlockName, rot.PoolLabel, len(pool), blockedDomain))
+			continue
+		}
+		newLocationURL := buildSwapURL(block.LocationURL, nextDomain)
+		log.Printf("[KLC-BLOCK-SWAP] attempt block=%d (%s): %q → %q",
+			rot.BlockID, rot.BlockName, block.LocationURL, newLocationURL)
+		if err := ms.klikcepat.UpdateBiolinkBlockLocation(rot.BlockID, newLocationURL); err != nil {
+			if ms.history != nil {
+				ms.history.LogSwap("klc-block-scan", rot.Label, rot.BlockName, block.LocationURL, newLocationURL, false, err.Error())
+			}
+			log.Printf("[KLC-BLOCK-SWAP] FAIL block=%d err=%v", rot.BlockID, err)
+			ms.notify.Notify(fmt.Sprintf(
+				"❌ *Klikcepat BLOCK AUTO-SWAP GAGAL*\n"+
+					"📄 Biolink slug: `/%s`\n"+
+					"🔘 Block: `%s`\n"+
+					"📤 Dari: `%s`\n"+
+					"📥 Ke: `%s`\n"+
+					"⚠️ Error: %v",
+				rot.BiolinkSlug, rot.BlockName, block.LocationURL, newLocationURL, err))
+			continue
+		}
+		if ms.history != nil {
+			ms.history.LogSwap("klc-block-scan", rot.Label, rot.BlockName, block.LocationURL, newLocationURL, true, "")
+		}
+
+		// Bangun full biolink URL buat display
+		biolinkDisplay := "/" + rot.BiolinkSlug
+		if ms.klcShortlinkURL != nil {
+			fakeLink := klikcepat.Link{
+				ID:       klikcepat.FlexInt(rot.BiolinkID),
+				DomainID: klikcepat.FlexInt(rot.BiolinkDomain),
+				URL:      rot.BiolinkSlug,
+				Type:     "biolink",
+			}
+			if full := ms.klcShortlinkURL(fakeLink); full != "" {
+				biolinkDisplay = full
+			}
+		}
+
+		ms.notify.Notify(fmt.Sprintf(
+			"⚡ *KLIKCEPAT BLOCK AUTO-SWAP*\n"+
+				"📄 Biolink: %s\n"+
+				"🔘 Block: *%s*\n"+
+				"🚫 Sebelum: `%s` *(BLOCKED — label: %s)*\n"+
+				"   URL: `%s`\n"+
+				"✅ Sekarang: `%s`\n"+
+				"   URL: `%s`\n"+
+				"📂 Pool: `%s`\n"+
+				"🕐 %s",
+			biolinkDisplay, rot.BlockName,
+			blockedDomain, blockedLabel, block.LocationURL,
+			nextDomain, newLocationURL,
+			rot.PoolLabel,
+			time.Now().Format("02/01/2006 15:04:05")))
+		log.Printf("[KLC-BLOCK-SWAP] rotator=%s block=%d pool=%s: %s → %s",
+			rot.Label, rot.BlockID, rot.PoolLabel, blockedDomain, nextDomain)
+	}
+	if matched == 0 && activeCount > 0 {
+		log.Printf("[KLC-BLOCK-SWAP] no rotator matched blocked=%s", blockedDomain)
 	}
 }
 

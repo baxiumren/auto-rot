@@ -38,8 +38,9 @@ type Handler struct {
 	monScanner *rotator.MonitorScanner
 	history    *store.HistoryStore
 
-	klikcepat         *klikcepat.Client
-	klikcepatRotators *store.KlikcepatRotatorStore
+	klikcepat              *klikcepat.Client
+	klikcepatRotators      *store.KlikcepatRotatorStore
+	klikcepatBlockRotators *store.KlikcepatBlockRotatorStore
 }
 
 type botNotifier struct {
@@ -77,21 +78,23 @@ func New(
 	history *store.HistoryStore,
 	klc *klikcepat.Client,
 	klcRotators *store.KlikcepatRotatorStore,
+	klcBlockRotators *store.KlikcepatBlockRotatorStore,
 ) *Handler {
 	return &Handler{
-		cfg:               cfg,
-		bot:               b,
-		sessions:          newSessionStore(),
-		domains:           domains,
-		cfrules:           cfrules,
-		rotators:          rotators,
-		creds:             creds,
-		cf:                cf,
-		rotSvc:            rotSvc,
-		monScanner:        monScanner,
-		history:           history,
-		klikcepat:         klc,
-		klikcepatRotators: klcRotators,
+		cfg:                    cfg,
+		bot:                    b,
+		sessions:               newSessionStore(),
+		domains:                domains,
+		cfrules:                cfrules,
+		rotators:               rotators,
+		creds:                  creds,
+		cf:                     cf,
+		rotSvc:                 rotSvc,
+		monScanner:             monScanner,
+		history:                history,
+		klikcepat:              klc,
+		klikcepatRotators:      klcRotators,
+		klikcepatBlockRotators: klcBlockRotators,
 	}
 }
 
@@ -407,6 +410,20 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleRotatorAddTypeCF(c)
 	case cbRotatorAddTypeKlikcepat:
 		return h.handleRotatorAddTypeKlikcepat(c)
+	case cbRotatorAddTypeKlcShortlink:
+		return h.handleRotatorAddTypeKlcShortlink(c)
+	case cbRotatorAddTypeKlcBiolink:
+		return h.handleRotatorAddTypeKlcBiolink(c)
+	case cbKlcBlockRotPickBiolink:
+		return h.handleKlcBlockRotPickBiolink(c)
+	case cbKlcBlockRotPickBlock:
+		return h.handleKlcBlockRotPickBlock(c)
+	case cbKlcBlockRotPickPool:
+		return h.handleKlcBlockRotPickPool(c)
+	case cbKlcBlockRotToggle:
+		return h.handleKlcBlockRotToggle(c)
+	case cbKlcBlockRotDelete:
+		return h.handleKlcBlockRotDelete(c)
 	case cbKlikcepatRotPickLink:
 		return h.handleKlikcepatRotPickLink(c)
 	case cbKlikcepatRotPickPool:
@@ -655,6 +672,8 @@ func (h *Handler) handleText(c tele.Context) error {
 		return nil // callback-only
 	case StepKlikcepatRotatorAddLabel:
 		return h.wizardKlikcepatRotatorAddLabel(c, sess)
+	case StepKlcBlockRotLabel:
+		return h.wizardKlcBlockRotLabel(c, sess)
 
 	// Klikcepat Bulk Setup Rotator
 	case StepKlikcepatRotBulkPick, StepKlikcepatRotBulkPool:

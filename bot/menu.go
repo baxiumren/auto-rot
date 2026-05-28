@@ -140,12 +140,23 @@ const (
 	cbRotatorAddTypeCF        = "rotator_add_cf"
 	cbRotatorAddTypeKlikcepat = "rotator_add_klc"
 
-	// Klikcepat Rotator
+	// Klikcepat subtype picker (after KLIKCEPAT clicked → BIOLINK vs SHORTLINK)
+	cbRotatorAddTypeKlcShortlink = "rotator_add_klc_sl" // param = page index
+	cbRotatorAddTypeKlcBiolink   = "rotator_add_klc_bl" // param = page index
+
+	// Klikcepat Rotator (shortlink)
 	cbKlikcepatRotPickLink = "klc_rot_picklink" // param = link ID
 	cbKlikcepatRotPickPool = "klc_rot_pickpool" // param = pool label
 	cbKlikcepatRotToggle   = "klc_rot_toggle"   // param = rotator ID
 	cbKlikcepatRotDelete   = "klc_rot_delete"   // param = rotator ID
 	cbKlikcepatRotForce    = "klc_rot_force"    // param = rotator ID
+
+	// Klikcepat Block Rotator (biolink button)
+	cbKlcBlockRotPickBiolink = "klc_blk_picklink" // param = biolink link_id
+	cbKlcBlockRotPickBlock   = "klc_blk_pickblock" // param = block_id
+	cbKlcBlockRotPickPool    = "klc_blk_pickpool"  // param = pool label
+	cbKlcBlockRotToggle      = "klc_blk_toggle"    // param = rotator ID
+	cbKlcBlockRotDelete      = "klc_blk_delete"    // param = rotator ID
 
 	// Bulk Setup Rotator — pick type (CF or Klikcepat) then bulk picker
 	cbRotatorBulkTypeCF        = "rotator_bulk_cf"

@@ -382,3 +382,63 @@ func (c *Client) ListDomains() ([]Domain, error) {
 	}
 	return resp.Data, nil
 }
+
+// ─── Biolink Blocks API (CUSTOM endpoint — perlu ApiBiolinkBlocks.php di server) ──
+
+// ListBiolinkBlocks fetches all blocks owned by user, optionally filtered by biolink link_id.
+// Pass linkID = 0 to list ALL blocks (paginated by backend default).
+func (c *Client) ListBiolinkBlocks(linkID int) ([]BiolinkBlock, error) {
+	path := "/api/biolink-blocks"
+	if linkID > 0 {
+		path += fmt.Sprintf("?link_id=%d", linkID)
+	}
+	data, err := c.do(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Data []BiolinkBlock `json:"data"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("parse biolink blocks: %w", err)
+	}
+	return resp.Data, nil
+}
+
+// GetBiolinkBlock fetches single block by ID.
+func (c *Client) GetBiolinkBlock(id int) (*BiolinkBlock, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("klikcepat: invalid block id %d", id)
+	}
+	data, err := c.do(http.MethodGet, fmt.Sprintf("/api/biolink-blocks/%d", id), nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Data BiolinkBlock `json:"data"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("parse biolink block: %w", err)
+	}
+	return &resp.Data, nil
+}
+
+// UpdateBiolinkBlockLocation swaps a block's location_url (partial update).
+// Auto-retry 1x setelah 3 detik kalau HTTP 5xx (sama pattern dgn UpdateLinkLocation).
+func (c *Client) UpdateBiolinkBlockLocation(id int, locationURL string) error {
+	if id <= 0 {
+		return fmt.Errorf("klikcepat: invalid block id %d", id)
+	}
+	form := url.Values{}
+	form.Set("location_url", locationURL)
+	_, err := c.do(http.MethodPost, fmt.Sprintf("/api/biolink-blocks/%d", id), form)
+	if err != nil && is5xxError(err) {
+		time.Sleep(3 * time.Second)
+		_, err = c.do(http.MethodPost, fmt.Sprintf("/api/biolink-blocks/%d", id), form)
+		if err == nil {
+			return nil
+		}
+		return fmt.Errorf("retry gagal: %w", err)
+	}
+	return err
+}

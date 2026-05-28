@@ -80,6 +80,11 @@ const (
 	// Klikcepat Bulk Setup
 	StepKlikcepatRotBulkPick Step = "klc_bulk_pick"
 	StepKlikcepatRotBulkPool Step = "klc_bulk_pool"
+
+	// Klikcepat Block Rotator wizard (biolink button rotation)
+	StepKlcBlockRotPickBlock Step = "klc_blk_pickblock"
+	StepKlcBlockRotPickPool  Step = "klc_blk_pickpool"
+	StepKlcBlockRotLabel     Step = "klc_blk_label"
 )
 
 type Session struct {

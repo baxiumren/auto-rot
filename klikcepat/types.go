@@ -89,3 +89,35 @@ type Domain struct {
 	Host      string  `json:"host"`   // "klikcepat.vip"
 	IsEnabled FlexInt `json:"is_enabled"`
 }
+
+// BiolinkBlock represents one block (button/heading/avatar/dll) di dalam biolink.
+// Cuma block type "link" yg punya location_url buat di-swap.
+// Settings di-decode best-effort (struktur bervariasi tergantung type).
+type BiolinkBlock struct {
+	ID           FlexInt         `json:"id"`
+	UserID       FlexInt         `json:"user_id"`
+	LinkID       FlexInt         `json:"link_id"`        // biolink parent ID
+	Type         string          `json:"type"`           // link, heading, paragraph, avatar, dll
+	LocationURL  string          `json:"location_url"`
+	Settings     json.RawMessage `json:"settings"`       // raw — extract Name kalau perlu
+	Order        FlexInt         `json:"order"`
+	Clicks       FlexInt         `json:"clicks"`
+	IsEnabled    FlexInt         `json:"is_enabled"`
+	Datetime     string          `json:"datetime"`
+	LastDatetime string          `json:"last_datetime"`
+}
+
+// BlockName extract field "name" dari settings (untuk display label tombol).
+// Return empty string kalau gak ada / parse error.
+func (b *BiolinkBlock) BlockName() string {
+	if len(b.Settings) == 0 {
+		return ""
+	}
+	var s struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(b.Settings, &s); err != nil {
+		return ""
+	}
+	return s.Name
+}
