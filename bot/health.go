@@ -54,6 +54,39 @@ func (h *Handler) handleHealth(c tele.Context) error {
 		}
 	}
 
+	// Klikcepat rotators
+	klcSLRotators := h.klikcepatRotators.GetAll()
+	klcSLActive, klcSLPause := 0, 0
+	for _, r := range klcSLRotators {
+		if r.Active {
+			klcSLActive++
+		} else {
+			klcSLPause++
+		}
+	}
+	klcBLRotators := h.klikcepatBlockRotators.GetAll()
+	klcBLActive, klcBLPause := 0, 0
+	for _, r := range klcBLRotators {
+		if r.Active {
+			klcBLActive++
+		} else {
+			klcBLPause++
+		}
+	}
+
+	// Klikcepat status
+	klcStatus := "❌ Belum di-set (Klikcepat auto-swap NONAKTIF)"
+	klcPingErr := ""
+	if h.klikcepat.HasCredentials() {
+		if err := h.klikcepat.Ping(); err != nil {
+			klcStatus = "⚠️ Credential terdaftar tapi gagal ping Klikcepat"
+			klcPingErr = err.Error()
+		} else {
+			klcStatus = "✅ Aktif & terhubung"
+		}
+	}
+	klcDomainMap := h.creds.GetKlikcepatDomainMap()
+
 	// Blocked saat ini (dari monitor scanner)
 	blocked := h.monScanner.GetBlockedSnapshot()
 	stickyList := checker.Default().GetStickyList()
@@ -102,13 +135,28 @@ func (h *Handler) handleHealth(c tele.Context) error {
 	}
 	sb.WriteString("\n")
 
-	// Rotators
-	sb.WriteString("*🔄 Auto Rotator:*\n")
+	// CF Rotators
+	sb.WriteString("*🔄 CF Auto Rotator:*\n")
 	sb.WriteString(fmt.Sprintf("• Total config: *%d*\n", len(allRotators)))
 	sb.WriteString(fmt.Sprintf("   • ▶️ Aktif: *%d*\n", activeCount))
 	if pauseCount > 0 {
 		sb.WriteString(fmt.Sprintf("   • ⏸ Pause: *%d*\n", pauseCount))
 	}
+	sb.WriteString("\n")
+
+	// Klikcepat Status + Rotators
+	sb.WriteString("*🔗 Klikcepat:*\n")
+	sb.WriteString(fmt.Sprintf("• %s\n", klcStatus))
+	if klcPingErr != "" {
+		sb.WriteString(fmt.Sprintf("  _error: %s_\n", escapeMD(truncate(klcPingErr, 80))))
+	}
+	if len(klcDomainMap) > 0 {
+		sb.WriteString(fmt.Sprintf("• 🌐 Domain mapping: *%d* entry\n", len(klcDomainMap)))
+	}
+	sb.WriteString(fmt.Sprintf("• 🔗 Shortlink rotator: *%d* (▶️ %d aktif, ⏸ %d pause)\n",
+		len(klcSLRotators), klcSLActive, klcSLPause))
+	sb.WriteString(fmt.Sprintf("• 📄 Biolink block rotator: *%d* (▶️ %d aktif, ⏸ %d pause)\n",
+		len(klcBLRotators), klcBLActive, klcBLPause))
 	sb.WriteString("\n")
 
 	// Blocked
