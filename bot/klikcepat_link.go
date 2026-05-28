@@ -454,6 +454,9 @@ func (h *Handler) renderKlikcepatListByType(c tele.Context, linkType string, pag
 
 // ─── Edit Link wizard ────────────────────────────────────────────────────────
 
+const klikcepatEditPerPage = 10
+
+// handleKlikcepatEdit — entry: type picker (BIOLINK | SHORTLINK).
 func (h *Handler) handleKlikcepatEdit(c tele.Context) error {
 	if !h.klikcepat.HasCredentials() {
 		return c.Respond(&tele.CallbackResponse{
@@ -461,30 +464,107 @@ func (h *Handler) handleKlikcepatEdit(c tele.Context) error {
 			ShowAlert: true,
 		})
 	}
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("📄 BIOLINK", cbKlikcepatEditBiolink),
+			m.Data("🔗 SHORTLINK", cbKlikcepatEditShortlink),
+		),
+		m.Row(m.Data("❌ Batal", cbKlikcepat)),
+	)
+	return c.Edit(
+		"✏️ *Edit Link — Pilih Tipe*\n\n"+
+			"• 📄 *BIOLINK* — edit bio page\n"+
+			"• 🔗 *SHORTLINK* — edit shortlink",
+		m, tele.ModeMarkdown)
+}
+
+// handleKlikcepatEditShortlink — paginated picker untuk shortlink.
+func (h *Handler) handleKlikcepatEditShortlink(c tele.Context) error {
+	return h.renderKlikcepatEditPicker(c, "link", "🔗 SHORTLINK", cbKlikcepatEditShortlink)
+}
+
+// handleKlikcepatEditBiolink — paginated picker untuk biolink.
+func (h *Handler) handleKlikcepatEditBiolink(c tele.Context) error {
+	return h.renderKlikcepatEditPicker(c, "biolink", "📄 BIOLINK", cbKlikcepatEditBiolink)
+}
+
+func (h *Handler) renderKlikcepatEditPicker(c tele.Context, linkType, typeLabel, navCb string) error {
+	pageStr := extractParam(c)
+	page := 0
+	if pageStr != "" {
+		page, _ = strconv.Atoi(pageStr)
+	}
+
 	c.Edit("⏳ Loading links...", tele.ModeMarkdown)
-	links, err := h.klikcepat.ListLinks("")
+	allLinks, err := h.klikcepat.ListLinks(linkType)
 	if err != nil {
 		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
 			backToKlikcepat(), tele.ModeMarkdown)
 	}
+	// Client-side strict filter (Pixly API ?type= sering di-ignore)
+	var links []klikcepat.Link
+	for _, l := range allLinks {
+		if l.Type == linkType {
+			links = append(links, l)
+		}
+	}
 	if len(links) == 0 {
-		return c.Edit("📭 Belum ada link.", backToKlikcepat(), tele.ModeMarkdown)
+		return c.Edit(
+			fmt.Sprintf("📭 *Belum ada %s di klikcepat lo.*", typeLabel),
+			backToKlikcepat(), tele.ModeMarkdown)
+	}
+
+	userMap := h.creds.GetKlikcepatDomainMap()
+	total := len(links)
+	totalPages := (total + klikcepatEditPerPage - 1) / klikcepatEditPerPage
+	if page >= totalPages {
+		page = totalPages - 1
+	}
+	if page < 0 {
+		page = 0
+	}
+	start := page * klikcepatEditPerPage
+	end := start + klikcepatEditPerPage
+	if end > total {
+		end = total
 	}
 
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
-	for _, l := range links {
-		if len(rows) >= 30 {
-			break // simple cap — pagination not yet implemented for edit picker
-		}
+	icon := "🔗"
+	if linkType == "biolink" {
+		icon = "📄"
+	}
+	for i := start; i < end; i++ {
+		l := links[i]
+		fullURL := klikcepat.BuildShortlinkURL(l, userMap, nil)
+		display := strings.TrimPrefix(fullURL, "https://")
+		display = strings.TrimPrefix(display, "http://")
 		rows = append(rows, m.Row(m.Data(
-			fmt.Sprintf("✏️ %s (/%s)", truncate(l.Title, 30), l.URL),
+			fmt.Sprintf("%s %s", icon, truncate(display, 45)),
 			cbKlikcepatEditPick, strconv.Itoa(int(l.ID)))))
 	}
-	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbKlikcepat)))
+
+	// Pagination row
+	if totalPages > 1 {
+		var navRow tele.Row
+		if page > 0 {
+			navRow = append(navRow, m.Data("⬅️ Prev", navCb, strconv.Itoa(page-1)))
+		}
+		navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
+		if page < totalPages-1 {
+			navRow = append(navRow, m.Data("Next ➡️", navCb, strconv.Itoa(page+1)))
+		}
+		rows = append(rows, navRow)
+	}
+	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbKlikcepatEdit)))
 	m.Inline(rows...)
 
-	return c.Edit("✏️ *Edit Link — Pilih link yang mau di-edit:*", m, tele.ModeMarkdown)
+	return c.Edit(
+		fmt.Sprintf("✏️ *Edit %s — Pilih link*\n\nPage %d/%d • Total %d link",
+			typeLabel, page+1, totalPages, total),
+		m, tele.ModeMarkdown)
 }
 
 func (h *Handler) handleKlikcepatEditPick(c tele.Context) error {

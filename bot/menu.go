@@ -118,6 +118,8 @@ const (
 	cbKlikcepatList           = "klc_list"       // param = page index
 	cbKlikcepatListByProj     = "klc_list_proj"  // param = "projectID|page"
 	cbKlikcepatEdit           = "klc_edit"
+	cbKlikcepatEditShortlink  = "klc_edit_sl" // param = page
+	cbKlikcepatEditBiolink    = "klc_edit_bl" // param = page
 	cbKlikcepatEditPick       = "klc_edit_pick"  // param = link ID
 	cbKlikcepatEditField      = "klc_edit_field" // param = field name
 	cbKlikcepatDelete         = "klc_delete"

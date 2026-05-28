@@ -512,6 +512,10 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleKlikcepatList(c)
 	case cbKlikcepatEdit:
 		return h.handleKlikcepatEdit(c)
+	case cbKlikcepatEditShortlink:
+		return h.handleKlikcepatEditShortlink(c)
+	case cbKlikcepatEditBiolink:
+		return h.handleKlikcepatEditBiolink(c)
 	case cbKlikcepatEditPick:
 		return h.handleKlikcepatEditPick(c)
 	case cbKlikcepatEditField:
