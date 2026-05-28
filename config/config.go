@@ -13,7 +13,7 @@ import (
 // Version — release versioning untuk bot.
 // Scheme: v1.0 → v1.1 → v1.2 → ... → v1.9 → v2.0 (naik major pas mau "double digit").
 // Update tiap release (lihat CHANGELOG.md untuk history).
-const Version = "1.0"
+const Version = "1.1"
 
 type Config struct {
 	BotToken        string

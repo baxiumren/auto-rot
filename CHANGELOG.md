@@ -18,6 +18,47 @@ v1.0 → v1.1 → v1.2 → v1.3 → ... → v1.9 → v2.0 → v2.1 → ...
 
 ---
 
+## 🚀 v1.1 — "Biolink Block + UI Polish" (2026-05-28)
+
+**Highlight:** Bug fix vendor API + biolink block rotator dari nol.
+
+### 🐛 Critical Bug Fixes
+- **Klikcepat API broken** — Patched Pixly source code (`ApiLinks.php`):
+  - `email_reports` decode missing → `array_filter` on string → PHP fatal 500
+  - Slug auto-randomize on partial update → bug `$_POST['url'] = false` fallback
+  - Patch line 578 + line 615 (lihat dokumentasi di-repo)
+
+### ✨ New Features
+- **📄 Biolink Block Rotator** — Auto-swap destination button di biolink (LOGIN, DAFTAR, dll)
+  - Custom API endpoint `ApiBiolinkBlocks.php` (build from scratch)
+  - GET list/single + POST update location_url
+  - Bot: Setup Rotator → KLIKCEPAT → 📄 BIOLINK → pick biolink → pick block → pool → label
+  - Bulk variant: multi-select blocks dalam 1 biolink
+- **🔍 Global Search extended** — sekarang scan Klikcepat juga:
+  - Domain mapping (klikcepat.com/.lat/.vip)
+  - Shortlink rotator destination
+  - Biolink block rotator destination
+- **🩺 Status Dashboard** — Section Klikcepat baru (status, mapping, rotator counts)
+
+### 🎨 UI/UX Improvements
+- **List Rotator** — Picker bertingkat: CF | KLIKCEPAT → BIOLINK BLOCK | SHORTLINK
+  - Counter per tipe di tombol picker
+  - Tiap sub-list ada Back button
+- **Edit Link** — Pagination 10/page + subtype picker + full URL display
+- **Bulk Setup** — Tanya prefix label setelah pilih pool (sebelumnya auto-label)
+- **Setup Rotator Klikcepat** — Display full URL (`klikcepat.lat/slug`) bukan slug doang
+- **Auto-swap notif** — Show full URL klikcepat sesuai domain mapping
+- **Klikcepat swap retry** — 1x setelah 3s kalau 5xx (transient backend)
+- **Block rotator integration ke monitor scanner** — trigger tiap cycle BLOCKED (idempotent)
+
+### 🔧 Backend
+- New `klikcepat.BiolinkBlock` type + `BuildShortlinkURL` helper
+- New `store.KlikcepatBlockRotatorStore`
+- Refactor `triggerKlikcepatAutoSwap` — decouple dari CF (jalan independent)
+- Client-side filter type=biolink/link (Pixly API filter di-ignore)
+
+---
+
 ## 🎰 v1.0 — "ALL IN ONE" Initial Release (2026-05-27)
 
 **Production-ready milestone.** Bot udah feature-complete untuk auto-rotate CF + Klikcepat dengan multi-source nawala check.
