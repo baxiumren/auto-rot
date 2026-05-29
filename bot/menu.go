@@ -486,8 +486,13 @@ func cancelMenu() *tele.ReplyMarkup {
 // Wizard/setup gak ada di group — semua redirect ke DM.
 
 const textGroupWelcome = "🎰🚀 *BONG BOT — ALL IN ONE FITUR BOT PALING GACOR!* 🔥\n\n" +
-	"_Group ini cuma buat notifikasi alert nawala & auto-swap._\n\n" +
-	"Setup & konfigurasi lewat *DM bot* langsung.\n\n" +
+	"🔔 *Buat MEMBER:* ketik `/` di chat, autocomplete bakal muncul.\n" +
+	"Contoh: `/rtp`, `/daftar`, `/login`, `/bukti`, `/apk`, `/wa`\n" +
+	"Bot bakal kasih link aktif yg bisa dipake — auto-skip yg keblock! 🚀\n\n" +
+	"━━━━━━━━━━━━━━━━━━\n" +
+	"⚙️ *Buat ADMIN:*\n" +
+	"_Group ini buat notifikasi alert nawala & auto-swap._\n" +
+	"Setup & konfigurasi lewat *DM bot* langsung.\n" +
 	"Tombol di bawah cuma read-only — buat liat status & list."
 
 func groupMenu(botUsername string) *tele.ReplyMarkup {
