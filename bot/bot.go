@@ -41,6 +41,7 @@ type Handler struct {
 	klikcepat              *klikcepat.Client
 	klikcepatRotators      *store.KlikcepatRotatorStore
 	klikcepatBlockRotators *store.KlikcepatBlockRotatorStore
+	groupCmds              *store.GroupCommandStore
 }
 
 type botNotifier struct {
@@ -79,6 +80,7 @@ func New(
 	klc *klikcepat.Client,
 	klcRotators *store.KlikcepatRotatorStore,
 	klcBlockRotators *store.KlikcepatBlockRotatorStore,
+	groupCmds *store.GroupCommandStore,
 ) *Handler {
 	return &Handler{
 		cfg:                    cfg,
@@ -95,6 +97,7 @@ func New(
 		klikcepat:              klc,
 		klikcepatRotators:      klcRotators,
 		klikcepatBlockRotators: klcBlockRotators,
+		groupCmds:              groupCmds,
 	}
 }
 
@@ -555,6 +558,16 @@ func (h *Handler) handleCallback(c tele.Context) error {
 	// Settings
 	case cbSettings:
 		return h.handleSettings(c)
+	case cbGroupCmd:
+		return h.handleGroupCmd(c)
+	case cbGroupCmdAdd:
+		return h.handleGroupCmdAdd(c)
+	case cbGroupCmdPickProject:
+		return h.handleGroupCmdPickProject(c)
+	case cbGroupCmdDelete:
+		return h.handleGroupCmdDelete(c)
+	case cbGroupCmdDeleteConfirm:
+		return h.handleGroupCmdDeleteConfirm(c)
 	case cbSettingsCF:
 		return h.handleSettingsCF(c)
 	case cbSettingsSetEmail:
@@ -613,8 +626,12 @@ func (h *Handler) handleText(c tele.Context) error {
 		}
 		return nil
 	}
-	// Di group: gak ada wizard, jadi semua text di-ignore (cuma slash command handler aktif)
+	// Di group: handle slash commands (group commands buat member), sisanya ignore
 	if !isDM {
+		text := strings.TrimSpace(c.Text())
+		if strings.HasPrefix(text, "/") {
+			return h.handleGroupSlashCommand(c, text)
+		}
 		return nil
 	}
 
@@ -706,6 +723,10 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardKlcBlockBulkLabel(c, sess)
 	case StepKlikcepatRotBulkLabel:
 		return h.wizardKlikcepatRotBulkLabel(c, sess)
+	case StepGroupCmdInputName:
+		return h.wizardGroupCmdInputName(c, sess)
+	case StepGroupCmdInputDesc:
+		return h.wizardGroupCmdInputDesc(c, sess)
 
 	// Klikcepat Bulk Setup Rotator
 	case StepKlikcepatRotBulkPick, StepKlikcepatRotBulkPool:

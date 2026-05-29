@@ -70,6 +70,7 @@ func main() {
 
 	klcRotators := store.NewKlikcepatRotatorStore()
 	klcBlockRotators := store.NewKlikcepatBlockRotatorStore()
+	groupCmds := store.NewGroupCommandStore()
 
 	// Optional API keys untuk checker (Source 2 & 3)
 	if cfg.TrustPositifKey != "" {
@@ -115,7 +116,7 @@ func main() {
 	monScanner.SetKlikcepatBlockRotators(klcBlockRotators)
 
 	// Handler bot
-	h := bot.New(b, cfg, domains, cfrules, rotators, creds, cf, rotSvc, monScanner, history, klc, klcRotators, klcBlockRotators)
+	h := bot.New(b, cfg, domains, cfrules, rotators, creds, cf, rotSvc, monScanner, history, klc, klcRotators, klcBlockRotators, groupCmds)
 	h.Register()
 
 	// Backfill: rule lama yg field Domain-nya kosong → fetch zone name dari CF.

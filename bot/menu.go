@@ -166,6 +166,13 @@ const (
 	cbRotatorListKlcSL     = "rot_list_klc_sl"
 	cbRotatorListKlcBL     = "rot_list_klc_bl"
 
+	// Group Commands (slash commands buat member di group)
+	cbGroupCmd              = "gcmd"
+	cbGroupCmdAdd           = "gcmd_add"
+	cbGroupCmdPickProject   = "gcmd_pick" // param = project_id
+	cbGroupCmdDelete        = "gcmd_del"  // param = command name
+	cbGroupCmdDeleteConfirm = "gcmd_del_y"
+
 	// Bulk Setup Rotator — pick type (CF or Klikcepat) then subtype
 	cbRotatorBulkTypeCF           = "rotator_bulk_cf"
 	cbRotatorBulkTypeKlikcepat    = "rotator_bulk_klc"
@@ -280,6 +287,7 @@ func settingsMenu() *tele.ReplyMarkup {
 			m.Data("⚙️ Cloudflare", cbSettingsCF),
 			m.Data("🔗 Klikcepat", cbSettingsKlikcepat),
 		),
+		m.Row(m.Data("💬 Group Commands", cbGroupCmd)),
 		m.Row(m.Data("🔙 Kembali", cbMain)),
 	)
 	return m

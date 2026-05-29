@@ -94,6 +94,10 @@ const (
 	// Bulk label prompts (user kasih prefix label setelah pilih pool)
 	StepRotatorBulkLabel      Step = "rotator_bulk_label"
 	StepKlikcepatRotBulkLabel Step = "klc_bulk_label"
+
+	// Group Commands wizard
+	StepGroupCmdInputName     Step = "gcmd_input_name"
+	StepGroupCmdInputDesc     Step = "gcmd_input_desc"
 )
 
 type Session struct {
