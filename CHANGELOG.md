@@ -18,6 +18,64 @@ v1.0 → v1.1 → v1.2 → v1.3 → ... → v1.9 → v2.0 → v2.1 → ...
 
 ---
 
+## 🎰 v1.5 — "Group Commands + Full UX Polish" (2026-05-29)
+
+**Big release.** Member di group sekarang bisa pake bot tanpa harus admin — slash command langsung kasih link aktif.
+
+### 💬 NEW: Group Commands
+- **Member-facing slash commands** — admin set di DM, member pake di group
+- Wizard 3-step: command name → pick klikcepat project → description
+- Auto-sync ke Telegram `setMyCommands(AllGroupChats)` — autocomplete muncul saat user ketik `/`
+- Group handler: detect `/cmd` → fetch klikcepat link by `project_id` → reply inline URL buttons
+- **Smart SAFE filter** — auto-skip link yg destination-nya sticky-blocked Kominfo
+- Format reply: `🎰 PROJECT — LINK TERSEDIA` + N link aktif + tombol klik
+- Group welcome message di-update — section terpisah buat MEMBER vs ADMIN
+
+### 🐛 Bug Fixes (Markdown Parse Errors)
+- **Username dengan underscore** (Suriani `@lupis_keju`) bikin Telegram reject bot reply
+  - Fix: escape `_`, `*`, `` ` `` di username sebelum prepend
+- **Italic wrap code block** (`_text `code` text_`) bikin parser confused
+  - Fix di banyak tempat: monitor source picker, group cmd success, group cmd list, dll
+- **Literal underscore in display** (`project_id=5`, `id=N`) ditafsirkan italic delimiter
+  - Fix: rephrase ke `(id N)` clean spacing
+
+### 🎨 UI Refactor (sebelumnya di v1.1-1.4 — di-merge)
+- **List Rotator picker bertingkat** — CF | KLIKCEPAT → BIOLINK BLOCK | SHORTLINK
+- **Bulk Setup label prompt** — user kasih prefix custom, gak auto-generate doang
+- **Edit Link pagination + subtype picker** (BIOLINK | SHORTLINK, full URL display)
+- **Health Status** — section Klikcepat baru (status, mapping, rotator counts)
+- **Global Search extended** — scan klikcepat domain mapping + shortlink/block rotator destination
+- **Auto-swap notif** — pake full URL klikcepat (`klikcepat.lat/slug`) sesuai domain mapping
+
+### ✨ Biolink Block Rotator (sebelumnya di v1.1)
+- Custom Pixly endpoint `ApiBiolinkBlocks.php` (build from scratch)
+- GET list/single + POST update location_url
+- Bot wizard: Setup Rotator → KLIKCEPAT → 📄 BIOLINK → pick biolink → pick block → pool → label
+- Bulk variant: multi-select blocks dalam 1 biolink → 1 pool → save N rotators
+- Monitor scanner trigger `triggerKlikcepatBlockAutoSwap` tiap cycle BLOCKED (idempotent)
+
+### 🔧 Backend
+- New `klikcepat.BiolinkBlock` type + `BuildShortlinkURL` helper
+- New `store.KlikcepatBlockRotatorStore`, `store.GroupCommandStore`
+- Klikcepat client: `ListBiolinkBlocks`, `GetBiolinkBlock`, `UpdateBiolinkBlockLocation`
+- Refactor `triggerKlikcepatAutoSwap` — decouple dari CF (jalan independent)
+- Client-side filter `type=biolink/link` (Pixly API filter di-ignore)
+- Klikcepat swap retry 1x setelah 3s kalau 5xx (transient backend)
+
+### 🐛 Critical Bug Fixes (Klikcepat Vendor)
+- **Pixly `ApiLinks.php`** patched (host: lo deploy edit sendiri):
+  - `email_reports` decode missing → `array_filter` on string → PHP fatal 500
+  - Slug auto-randomize on partial update → `$_POST['url'] = false` fallback
+- **Klikcepat auto-swap sticky-blocked stuck** — sebelumnya skip retry kalau domain udah sticky
+  - Fix: trigger swap juga buat sticky/force-blocked domain (idempotent skip kalau host udah beda)
+
+### 🧪 Infrastructure
+- LinkFB.io API verified compatible (sama Pixly, no patch needed)
+- Multi-shortener foundation ready (Phase 2)
+- ASCII art README diperbaiki (sebelumnya oleng di GitHub render)
+
+---
+
 ## 🚀 v1.1 — "Biolink Block + UI Polish" (2026-05-28)
 
 **Highlight:** Bug fix vendor API + biolink block rotator dari nol.

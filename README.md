@@ -13,7 +13,7 @@
 **Telegram bot serba bisa buat para affiliate Indonesia.**
 Auto-rotate domain Cloudflare + Klikcepat saat kena nawala — biar duit gak putus! 💸
 
-[![Version](https://img.shields.io/badge/version-v1.1-blue)](https://github.com/baxiumren/auto-rot/releases)
+[![Version](https://img.shields.io/badge/version-v1.5-blue)](https://github.com/baxiumren/auto-rot/releases)
 [![Go](https://img.shields.io/badge/go-1.21+-cyan)](https://go.dev)
 [![License](https://img.shields.io/badge/license-MIT-green)](#-license)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-orange)]()
