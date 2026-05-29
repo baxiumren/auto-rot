@@ -428,11 +428,12 @@ func (h *Handler) wizardMonitorCheck(c tele.Context, sess *Session) error {
 	infoBuilder.WriteString("\n━━━━━━━━━━━━━━━━━━\n")
 
 	// Footer hint — sesuai source yg aktif
+	// Pakai plain text (no italic wrap) karena underscore di dalem code block sering bikin Telegram bingung parse markdown.
 	if !hasTP && !hasNW {
 		infoBuilder.WriteString(
-			"_💡 Tambah `TRUSTPOSITIF_API_KEY` atau `NAWALACHECK_API_KEY` di_ `.env` _untuk dapet source tambahan._")
+			"💡 Tambah `TRUSTPOSITIF_API_KEY` atau `NAWALACHECK_API_KEY` di `.env` untuk dapet source tambahan.")
 	} else {
-		infoBuilder.WriteString("_Tip: Kominfo paling reliable & gratis unlimited._")
+		infoBuilder.WriteString("💡 Tip: Kominfo paling reliable & gratis unlimited.")
 	}
 
 	return h.reply(c, infoBuilder.String(), m, tele.ModeMarkdown)
