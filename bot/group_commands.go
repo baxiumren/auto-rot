@@ -38,14 +38,14 @@ func (h *Handler) handleGroupCmd(c tele.Context) error {
 	sb.WriteString("Slash commands buat member di group. Member ketik `/cmd` → bot reply link.\n\n")
 
 	if len(cmds) == 0 {
-		sb.WriteString("📭 _Belum ada command terdaftar._\n\nKlik ➕ buat tambah.")
+		sb.WriteString("📭 Belum ada command terdaftar.\n\nKlik ➕ buat tambah.")
 	} else {
 		sb.WriteString("*Terdaftar:*\n")
 		for i, gc := range cmds {
-			sb.WriteString(fmt.Sprintf("%d. /%s → 📂 *%s* (project_id=%d)\n",
+			sb.WriteString(fmt.Sprintf("%d. /%s → 📂 *%s* (id %d)\n",
 				i+1, escapeMD(gc.Command), escapeMD(gc.ProjectName), gc.ProjectID))
 			if gc.Description != "" {
-				sb.WriteString(fmt.Sprintf("   _%s_\n", escapeMD(gc.Description)))
+				sb.WriteString(fmt.Sprintf("   📝 %s\n", escapeMD(gc.Description)))
 			}
 		}
 		sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\nTotal: *%d* command", len(cmds)))
@@ -164,11 +164,11 @@ func (h *Handler) handleGroupCmdPickProject(c tele.Context) error {
 
 	return c.Edit(
 		fmt.Sprintf(
-			"✅ Project: *%s* (id=%d)\n\n"+
+			"✅ Project: *%s* (id %d)\n\n"+
 				"📝 *Step 3/3: Description*\n\n"+
-				"Ketik deskripsi singkat (max 256 char). Ini muncul di autocomplete Telegram pas user ketik `/`.\n\n"+
+				"Ketik deskripsi singkat (max 256 char). Ini muncul di autocomplete Telegram pas user ketik /\n\n"+
 				"*Contoh:* `Daftar link RTP MAHASLOT`\n\n"+
-				"_(Kirim `-` buat skip deskripsi.)_",
+				"Kirim `-` buat skip deskripsi.",
 			escapeMD(proj.Name), pid),
 		cancelMenu(), tele.ModeMarkdown)
 }
@@ -202,10 +202,9 @@ func (h *Handler) wizardGroupCmdInputDesc(c tele.Context, sess *Session) error {
 
 	// Sync ke Telegram autocomplete
 	if err := h.syncTelegramCommands(); err != nil {
-		// Non-fatal — command tersimpan, cuma autocomplete-nya delayed.
 		return h.reply(c,
 			fmt.Sprintf("✅ Command */%s* ditambahin (pointing ke project *%s*).\n\n"+
-				"⚠️ Sync autocomplete ke Telegram gagal: %s\n_Coba reload Telegram dalam beberapa menit._",
+				"⚠️ Sync autocomplete ke Telegram gagal: %s\nCoba reload Telegram dalam beberapa menit.",
 				cmd, escapeMD(projectName), escapeMD(err.Error())),
 			backToSettings(), tele.ModeMarkdown)
 	}
@@ -217,9 +216,9 @@ func (h *Handler) wizardGroupCmdInputDesc(c tele.Context, sess *Session) error {
 	return h.reply(c,
 		fmt.Sprintf("✅ *Group Command dibuat!*\n\n"+
 			"💬 Trigger: `/%s`\n"+
-			"📂 Project: *%s* (id=%d)%s\n\n"+
-			"🚀 _Sekarang member di group bisa ketik `/%s` buat dapet link._\n"+
-			"_(Autocomplete Telegram update dalam 1-2 menit.)_",
+			"📂 Project: *%s* (id %d)%s\n\n"+
+			"🚀 Sekarang member di group bisa ketik /%s buat dapet link.\n"+
+			"(Autocomplete Telegram update dalam 1-2 menit.)",
 			cmd, escapeMD(projectName), pid, descLine, cmd),
 		backToSettings(), tele.ModeMarkdown)
 }
@@ -238,7 +237,7 @@ func (h *Handler) handleGroupCmdDelete(c tele.Context) error {
 		),
 	)
 	return c.Edit(
-		fmt.Sprintf("🗑 *Hapus Command `/%s`?*\n\n_Member di group gak bisa pake command ini lagi setelah dihapus._", escapeMD(cmd)),
+		fmt.Sprintf("🗑 *Hapus Command /%s ?*\n\nMember di group gak bisa pake command ini lagi setelah dihapus.", escapeMD(cmd)),
 		m, tele.ModeMarkdown)
 }
 
