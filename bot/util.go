@@ -15,7 +15,14 @@ func userTag(u *tele.User) string {
 		return ""
 	}
 	if u.Username != "" {
-		return "@" + u.Username
+		// Escape markdown-special chars di username (Telegram allows _ di username,
+		// tapi Markdown V1 anggep _ sebagai italic delimiter → parse error 400).
+		safeUsername := strings.NewReplacer(
+			"_", "\\_",
+			"*", "\\*",
+			"`", "\\`",
+		).Replace(u.Username)
+		return "@" + safeUsername
 	}
 	name := u.FirstName
 	if name == "" {
