@@ -42,6 +42,7 @@ type Handler struct {
 	klikcepatRotators      *store.KlikcepatRotatorStore
 	klikcepatBlockRotators *store.KlikcepatBlockRotatorStore
 	groupCmds              *store.GroupCommandStore
+	linkfb                 *klikcepat.Client // separate Pixly instance for LinkFB
 }
 
 type botNotifier struct {
@@ -81,6 +82,7 @@ func New(
 	klcRotators *store.KlikcepatRotatorStore,
 	klcBlockRotators *store.KlikcepatBlockRotatorStore,
 	groupCmds *store.GroupCommandStore,
+	linkfb *klikcepat.Client,
 ) *Handler {
 	return &Handler{
 		cfg:                    cfg,
@@ -98,6 +100,7 @@ func New(
 		klikcepatRotators:      klcRotators,
 		klikcepatBlockRotators: klcBlockRotators,
 		groupCmds:              groupCmds,
+		linkfb:                 linkfb,
 	}
 }
 
@@ -588,6 +591,42 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleGroupCmdDelete(c)
 	case cbGroupCmdDeleteConfirm:
 		return h.handleGroupCmdDeleteConfirm(c)
+
+	// LinkFB Settings
+	case cbSettingsLinkfb:
+		return h.handleSettingsLinkfb(c)
+	case cbSettingsLinkfbSetURL:
+		return h.handleSettingsLinkfbSetURL(c)
+	case cbSettingsLinkfbSetKey:
+		return h.handleSettingsLinkfbSetKey(c)
+	case cbSettingsLinkfbTest:
+		return h.handleSettingsLinkfbTest(c)
+	case cbSettingsLinkfbClear:
+		return h.handleSettingsLinkfbClear(c)
+
+	// LinkFB main + CRUD
+	case cbLinkfb:
+		return h.handleLinkfb(c)
+	case cbLinkfbAdd:
+		return h.handleLinkfbAdd(c)
+	case cbLinkfbAddPickProj:
+		return h.handleLinkfbAddPickProject(c)
+	case cbLinkfbList:
+		return h.handleLinkfbList(c)
+	case cbLinkfbEdit:
+		return h.handleLinkfbEdit(c)
+	case cbLinkfbEditPick:
+		return h.handleLinkfbEditPick(c)
+	case cbLinkfbEditField:
+		return h.handleLinkfbEditField(c)
+	case cbLinkfbDelete:
+		return h.handleLinkfbDelete(c)
+	case cbLinkfbDeletePick:
+		return h.handleLinkfbDeletePick(c)
+	case cbLinkfbDeleteConfirm:
+		return h.handleLinkfbDeleteConfirm(c)
+	case cbLinkfbProjects:
+		return h.handleLinkfbProjects(c)
 	case cbSettingsCF:
 		return h.handleSettingsCF(c)
 	case cbSettingsSetEmail:
@@ -751,6 +790,20 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardKlikcepatEditSearchSL(c, sess)
 	case StepKlikcepatEditSearchInputBL:
 		return h.wizardKlikcepatEditSearchBL(c, sess)
+
+	// LinkFB
+	case StepSettingsLinkfbURL:
+		return h.wizardSettingsLinkfbURL(c, sess)
+	case StepSettingsLinkfbKey:
+		return h.wizardSettingsLinkfbKey(c, sess)
+	case StepLinkfbAddTitle:
+		return h.wizardLinkfbAddTitle(c, sess)
+	case StepLinkfbAddSlug:
+		return h.wizardLinkfbAddSlug(c, sess)
+	case StepLinkfbAddLocationURL:
+		return h.wizardLinkfbAddLocation(c, sess)
+	case StepLinkfbEditValue:
+		return h.wizardLinkfbEditValue(c, sess)
 
 	// Klikcepat Bulk Setup Rotator
 	case StepKlikcepatRotBulkPick, StepKlikcepatRotBulkPool:

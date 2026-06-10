@@ -68,6 +68,20 @@ func main() {
 		log.Printf("⚠️  Klikcepat credentials belum di-set — fitur klikcepat disabled. Pakai menu 🔧 Settings → 🔗 Klikcepat.")
 	}
 
+	// LinkFB client — same Pixly engine, independent instance
+	cred := creds.Get()
+	linkfbBaseURL := cred.LinkfbBaseURL
+	linkfbAPIKey := cred.LinkfbAPIKey
+	if linkfbBaseURL == "" {
+		linkfbBaseURL = "https://linkfb.io"
+	}
+	linkfb := klikcepat.New(linkfbBaseURL, linkfbAPIKey)
+	if linkfb.HasCredentials() {
+		log.Printf("✅ LinkFB client siap (base=%s)", linkfbBaseURL)
+	} else {
+		log.Printf("⚠️  LinkFB credentials belum di-set — fitur linkfb disabled. Pakai menu 🔧 Settings → 🔗 LinkFB.")
+	}
+
 	klcRotators := store.NewKlikcepatRotatorStore()
 	klcBlockRotators := store.NewKlikcepatBlockRotatorStore()
 	groupCmds := store.NewGroupCommandStore()
@@ -116,7 +130,7 @@ func main() {
 	monScanner.SetKlikcepatBlockRotators(klcBlockRotators)
 
 	// Handler bot
-	h := bot.New(b, cfg, domains, cfrules, rotators, creds, cf, rotSvc, monScanner, history, klc, klcRotators, klcBlockRotators, groupCmds)
+	h := bot.New(b, cfg, domains, cfrules, rotators, creds, cf, rotSvc, monScanner, history, klc, klcRotators, klcBlockRotators, groupCmds, linkfb)
 	h.Register()
 
 	// Backfill: rule lama yg field Domain-nya kosong → fetch zone name dari CF.

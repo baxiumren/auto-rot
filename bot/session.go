@@ -102,6 +102,19 @@ const (
 	// Klikcepat Edit search query
 	StepKlikcepatEditSearchInputSL Step = "klc_edit_srch_in_sl"
 	StepKlikcepatEditSearchInputBL Step = "klc_edit_srch_in_bl"
+
+	// LinkFB CRUD (shortlink only, no biolink edit)
+	StepLinkfbAddType        Step = "lfb_add_type"
+	StepLinkfbAddTitle       Step = "lfb_add_title"
+	StepLinkfbAddSlug        Step = "lfb_add_slug"
+	StepLinkfbAddLocationURL Step = "lfb_add_location"
+	StepLinkfbAddProject     Step = "lfb_add_project"
+	StepLinkfbEditPickField  Step = "lfb_edit_pickfield"
+	StepLinkfbEditValue      Step = "lfb_edit_value"
+
+	// LinkFB Settings
+	StepSettingsLinkfbURL Step = "set_lfb_url_in"
+	StepSettingsLinkfbKey Step = "set_lfb_key_in"
 )
 
 type Session struct {

@@ -428,6 +428,9 @@ type Credentials struct {
 	KlikcepatAPIKey        string         `json:"klikcepat_api_key"`
 	KlikcepatDisplayDomain string         `json:"klikcepat_display_domain"` // [DEPRECATED] single default — kept for backward compat
 	KlikcepatDomainMap     map[int]string `json:"klikcepat_domain_map"`     // domain_id → host (e.g., 2 → klikcepat.vip)
+	LinkfbBaseURL          string         `json:"linkfb_base_url"`
+	LinkfbAPIKey           string         `json:"linkfb_api_key"`
+	LinkfbDomainMap        map[int]string `json:"linkfb_domain_map"` // domain_id → host
 }
 
 type CredentialStore struct {
@@ -552,6 +555,65 @@ func (s *CredentialStore) ClearKlikcepat() {
 	s.data.KlikcepatBaseURL = ""
 	s.data.KlikcepatAPIKey = ""
 	s.data.KlikcepatDisplayDomain = ""
+	go s.save()
+}
+
+// ─── LinkFB Credentials ──────────────────────────────────────────────────────
+
+func (s *CredentialStore) SetLinkfbBaseURL(url string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.LinkfbBaseURL = strings.TrimRight(strings.TrimSpace(url), "/")
+	go s.save()
+}
+
+func (s *CredentialStore) SetLinkfbAPIKey(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.LinkfbAPIKey = strings.TrimSpace(key)
+	go s.save()
+}
+
+func (s *CredentialStore) SetLinkfbDomainMapping(id int, host string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.LinkfbDomainMap == nil {
+		s.data.LinkfbDomainMap = make(map[int]string)
+	}
+	host = strings.TrimSpace(host)
+	host = strings.TrimPrefix(host, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	host = strings.TrimSuffix(host, "/")
+	s.data.LinkfbDomainMap[id] = host
+	go s.save()
+}
+
+func (s *CredentialStore) RemoveLinkfbDomainMapping(id int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.data.LinkfbDomainMap[id]; !ok {
+		return false
+	}
+	delete(s.data.LinkfbDomainMap, id)
+	go s.save()
+	return true
+}
+
+func (s *CredentialStore) GetLinkfbDomainMap() map[int]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int]string, len(s.data.LinkfbDomainMap))
+	for k, v := range s.data.LinkfbDomainMap {
+		out[k] = v
+	}
+	return out
+}
+
+func (s *CredentialStore) ClearLinkfb() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.LinkfbBaseURL = ""
+	s.data.LinkfbAPIKey = ""
 	go s.save()
 }
 

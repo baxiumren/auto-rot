@@ -176,6 +176,27 @@ const (
 	cbGroupCmdDelete        = "gcmd_del"  // param = command name
 	cbGroupCmdDeleteConfirm = "gcmd_del_y"
 
+	// LinkFB (separate Pixly instance — shortlink + project only, no biolink edit)
+	cbLinkfb              = "linkfb"
+	cbLinkfbAdd           = "linkfb_add"
+	cbLinkfbAddType       = "linkfb_addt"   // param = type
+	cbLinkfbAddPickProj   = "linkfb_addpr"  // param = project_id
+	cbLinkfbList          = "linkfb_list"   // param = "type|page"
+	cbLinkfbEdit          = "linkfb_edit"
+	cbLinkfbEditPick      = "linkfb_editp"  // param = link_id
+	cbLinkfbEditField     = "linkfb_editf"  // param = field
+	cbLinkfbDelete        = "linkfb_del"
+	cbLinkfbDeletePick    = "linkfb_delp"   // param = link_id
+	cbLinkfbDeleteConfirm = "linkfb_delc"   // param = link_id
+	cbLinkfbProjects      = "linkfb_proj"
+
+	// LinkFB Settings
+	cbSettingsLinkfb       = "set_lfb"
+	cbSettingsLinkfbSetURL = "set_lfb_url"
+	cbSettingsLinkfbSetKey = "set_lfb_key"
+	cbSettingsLinkfbTest   = "set_lfb_test"
+	cbSettingsLinkfbClear  = "set_lfb_clear"
+
 	// Bulk Setup Rotator — pick type (CF or Klikcepat) then subtype
 	cbRotatorBulkTypeCF           = "rotator_bulk_cf"
 	cbRotatorBulkTypeKlikcepat    = "rotator_bulk_klc"
@@ -321,6 +342,9 @@ func mainMenu() *tele.ReplyMarkup {
 			m.Data("🔗 KLIKCEPAT", cbKlikcepat),
 		),
 		m.Row(
+			m.Data("🔗 LINKFB", cbLinkfb),
+		),
+		m.Row(
 			m.Data("🔧 Settings", cbSettings),
 		),
 	)
@@ -343,6 +367,7 @@ func settingsMenu() *tele.ReplyMarkup {
 			m.Data("⚙️ Cloudflare", cbSettingsCF),
 			m.Data("🔗 Klikcepat", cbSettingsKlikcepat),
 		),
+		m.Row(m.Data("🔗 LinkFB", cbSettingsLinkfb)),
 		m.Row(m.Data("💬 Group Commands", cbGroupCmd)),
 		m.Row(m.Data("🔙 Kembali", cbMain)),
 	)
