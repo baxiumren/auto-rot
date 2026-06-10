@@ -488,15 +488,19 @@ func cancelMenu() *tele.ReplyMarkup {
 // Cuma 4 tombol: Status, List Domain, List CF, Setup di DM.
 // Wizard/setup gak ada di group — semua redirect ke DM.
 
-const textGroupWelcome = "🎰🚀 *BONG BOT — ALL IN ONE FITUR BOT PALING GACOR!* 🔥\n\n" +
-	"🔔 *Buat MEMBER:* ketik `/` di chat, autocomplete bakal muncul.\n" +
-	"Contoh: `/rtp`, `/daftar`, `/login`, `/bukti`, `/apk`, `/wa`\n" +
-	"Bot bakal kasih link aktif yg bisa dipake — auto-skip yg keblock! 🚀\n\n" +
-	"━━━━━━━━━━━━━━━━━━\n" +
-	"⚙️ *Buat ADMIN:*\n" +
-	"_Group ini buat notifikasi alert nawala & auto-swap._\n" +
-	"Setup & konfigurasi lewat *DM bot* langsung.\n" +
-	"Tombol di bawah cuma read-only — buat liat status & list."
+const textGroupWelcome = "💎 *B O N G   B O T* 💎\n" +
+	"|\n" +
+	"🎰 *ALL IN ONE FITUR BOT PALING GACOR* 🔥\n" +
+	"|\n" +
+	"🔔 *BUAT MEMBER*\n" +
+	"└ Ketik `/` di chat → autocomplete muncul\n" +
+	"└ Contoh: /rtp, /daftar, /login, /bukti, /apk, /wa\n" +
+	"└ Bot kasih link aktif — auto-skip yg keblock 🚀\n" +
+	"|\n" +
+	"⚙️ *BUAT ADMIN*\n" +
+	"└ Group ini buat notifikasi alert nawala\n" +
+	"└ Setup & konfigurasi lewat DM bot\n" +
+	"└ Tombol di bawah read-only (status & list)"
 
 func groupMenu(botUsername string) *tele.ReplyMarkup {
 	m := &tele.ReplyMarkup{}

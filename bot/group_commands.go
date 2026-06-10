@@ -348,16 +348,20 @@ func (h *Handler) handleGroupSlashCommand(c tele.Context, text string) error {
 	m.Inline(rows...)
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("🎰 *%s — LINK TERSEDIA*\n", escapeMD(strings.ToUpper(gc.ProjectName))))
-	sb.WriteString("━━━━━━━━━━━━━━━━━━\n")
+	sb.WriteString(fmt.Sprintf("💎 *%s* 💎\n", escapeMD(strings.ToUpper(gc.ProjectName))))
+	sb.WriteString("|\n")
 	if gc.Description != "" {
-		sb.WriteString(fmt.Sprintf("_%s_\n\n", escapeMD(gc.Description)))
+		sb.WriteString(fmt.Sprintf("📝 %s\n", escapeMD(gc.Description)))
+		sb.WriteString("|\n")
 	}
-	sb.WriteString(fmt.Sprintf("✅ %d link aktif", safeCount))
+	sb.WriteString("🎰 *STATUS*\n")
+	sb.WriteString(fmt.Sprintf("└ ✅ Link aktif    : %d\n", safeCount))
 	if skippedBlocked > 0 {
-		sb.WriteString(fmt.Sprintf(" • ⚠️ %d link sementara di-skip (blocked)", skippedBlocked))
+		sb.WriteString(fmt.Sprintf("└ ⚠️ Skip blocked  : %d\n", skippedBlocked))
 	}
-	sb.WriteString("\n\n_Klik tombol di bawah buat akses._")
+	sb.WriteString("|\n")
+	sb.WriteString("🚀 *AKSES*\n")
+	sb.WriteString("└ Klik tombol di bawah buat redirect")
 
 	return c.Reply(sb.String(), m, tele.ModeMarkdown)
 }

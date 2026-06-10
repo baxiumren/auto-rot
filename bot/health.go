@@ -94,33 +94,33 @@ func (h *Handler) handleHealth(c tele.Context) error {
 
 	// Build pesan
 	var sb strings.Builder
-	sb.WriteString("🩺 *HEALTH DASHBOARD*\n")
-	sb.WriteString("═══════════════════════════\n\n")
+	sb.WriteString("💎 *H E A L T H   D A S H B O A R D* 💎\n")
+	sb.WriteString("|\n")
 
 	// CF Status
-	sb.WriteString("*⚙️ Cloudflare:*\n")
-	sb.WriteString(fmt.Sprintf("• %s\n", cfStatus))
+	sb.WriteString("⚙️ *CLOUDFLARE*\n")
+	sb.WriteString(fmt.Sprintf("└ Status : %s\n", cfStatus))
 	if cfPingErr != "" {
-		sb.WriteString(fmt.Sprintf("  _error: %s_\n", escapeMD(truncate(cfPingErr, 80))))
+		sb.WriteString(fmt.Sprintf("└ Error  : %s\n", escapeMD(truncate(cfPingErr, 60))))
 	}
-	sb.WriteString("\n")
+	sb.WriteString("|\n")
 
 	// Monitor
-	sb.WriteString("*📡 Monitor:*\n")
-	sb.WriteString(fmt.Sprintf("• Total domain: *%d*\n", totalDomains))
-	sb.WriteString(fmt.Sprintf("• Total kategori: *%d*\n", len(labels)))
+	sb.WriteString("📡 *MONITOR*\n")
+	sb.WriteString(fmt.Sprintf("└ Total domain  : %d\n", totalDomains))
+	sb.WriteString(fmt.Sprintf("└ Total kategori: %d\n", len(labels)))
+	sb.WriteString(fmt.Sprintf("└ Interval cek  : %v\n", h.monScanner.GetInterval()))
 	if len(labels) > 0 {
-		sb.WriteString("• Per kategori:\n")
+		sb.WriteString("└ Per kategori:\n")
 		for _, lbl := range labels {
-			sb.WriteString(fmt.Sprintf("   📂 *%s*: %d domain\n", lbl, len(allDomains[lbl])))
+			sb.WriteString(fmt.Sprintf("   └ 📂 %s : %d domain\n", escapeMD(lbl), len(allDomains[lbl])))
 		}
 	}
-	sb.WriteString(fmt.Sprintf("• Interval cek: *%v*\n", h.monScanner.GetInterval()))
-	sb.WriteString("\n")
+	sb.WriteString("|\n")
 
 	// CF Rules
-	sb.WriteString("*⚙️ CF Redirect:*\n")
-	sb.WriteString(fmt.Sprintf("• Total rule terdaftar: *%d*\n", len(cfRules)))
+	sb.WriteString("⚙️ *CF REDIRECT*\n")
+	sb.WriteString(fmt.Sprintf("└ Total rule : %d\n", len(cfRules)))
 	if len(cfRules) > 0 {
 		v1, v2 := 0, 0
 		for _, r := range cfRules {
@@ -130,42 +130,41 @@ func (h *Handler) handleHealth(c tele.Context) error {
 				v2++
 			}
 		}
-		sb.WriteString(fmt.Sprintf("   • V2 Redirect Rules: *%d*\n", v2))
-		sb.WriteString(fmt.Sprintf("   • V1 Page Rules: *%d*\n", v1))
+		sb.WriteString(fmt.Sprintf("└ V2 Redirect: %d\n", v2))
+		sb.WriteString(fmt.Sprintf("└ V1 Page    : %d\n", v1))
 	}
-	sb.WriteString("\n")
+	sb.WriteString("|\n")
 
 	// CF Rotators
-	sb.WriteString("*🔄 CF Auto Rotator:*\n")
-	sb.WriteString(fmt.Sprintf("• Total config: *%d*\n", len(allRotators)))
-	sb.WriteString(fmt.Sprintf("   • ▶️ Aktif: *%d*\n", activeCount))
+	sb.WriteString("🔄 *CF AUTO ROTATOR*\n")
+	sb.WriteString(fmt.Sprintf("└ Total config : %d\n", len(allRotators)))
+	sb.WriteString(fmt.Sprintf("└ ▶️ Aktif      : %d\n", activeCount))
 	if pauseCount > 0 {
-		sb.WriteString(fmt.Sprintf("   • ⏸ Pause: *%d*\n", pauseCount))
+		sb.WriteString(fmt.Sprintf("└ ⏸ Pause      : %d\n", pauseCount))
 	}
-	sb.WriteString("\n")
+	sb.WriteString("|\n")
 
 	// Klikcepat Status + Rotators
-	sb.WriteString("*🔗 Klikcepat:*\n")
-	sb.WriteString(fmt.Sprintf("• %s\n", klcStatus))
+	sb.WriteString("🔗 *KLIKCEPAT*\n")
+	sb.WriteString(fmt.Sprintf("└ Status : %s\n", klcStatus))
 	if klcPingErr != "" {
-		sb.WriteString(fmt.Sprintf("  _error: %s_\n", escapeMD(truncate(klcPingErr, 80))))
+		sb.WriteString(fmt.Sprintf("└ Error  : %s\n", escapeMD(truncate(klcPingErr, 60))))
 	}
 	if len(klcDomainMap) > 0 {
-		sb.WriteString(fmt.Sprintf("• 🌐 Domain mapping: *%d* entry\n", len(klcDomainMap)))
+		sb.WriteString(fmt.Sprintf("└ 🌐 Domain mapping : %d entry\n", len(klcDomainMap)))
 	}
-	sb.WriteString(fmt.Sprintf("• 🔗 Shortlink rotator: *%d* (▶️ %d aktif, ⏸ %d pause)\n",
+	sb.WriteString(fmt.Sprintf("└ 🔗 Shortlink rot. : %d (▶️ %d / ⏸ %d)\n",
 		len(klcSLRotators), klcSLActive, klcSLPause))
-	sb.WriteString(fmt.Sprintf("• 📄 Biolink block rotator: *%d* (▶️ %d aktif, ⏸ %d pause)\n",
+	sb.WriteString(fmt.Sprintf("└ 📄 Block rotator  : %d (▶️ %d / ⏸ %d)\n",
 		len(klcBLRotators), klcBLActive, klcBLPause))
-	sb.WriteString("\n")
+	sb.WriteString("|\n")
 
 	// Blocked
-	sb.WriteString("*🚨 Status Blocked:*\n")
+	sb.WriteString("🚨 *STATUS BLOCKED*\n")
 	if len(blocked) == 0 {
-		sb.WriteString("• ✅ Gak ada domain blocked saat ini\n")
+		sb.WriteString("└ ✅ Gak ada domain blocked saat ini\n")
 	} else {
-		sb.WriteString(fmt.Sprintf("• 🔴 *%d domain* sedang blocked:\n", len(blocked)))
-		// Sort by domain name
+		sb.WriteString(fmt.Sprintf("└ 🔴 %d domain sedang blocked:\n", len(blocked)))
 		var bdom []string
 		for d := range blocked {
 			bdom = append(bdom, d)
@@ -173,28 +172,28 @@ func (h *Handler) handleHealth(c tele.Context) error {
 		sort.Strings(bdom)
 		for i, d := range bdom {
 			if i >= 5 {
-				sb.WriteString(fmt.Sprintf("   _... dan %d lainnya_\n", len(bdom)-5))
+				sb.WriteString(fmt.Sprintf("   └ ... dan %d lainnya\n", len(bdom)-5))
 				break
 			}
-			sb.WriteString(fmt.Sprintf("   • `%s`\n", d))
+			sb.WriteString(fmt.Sprintf("   └ `%s`\n", d))
 		}
 	}
-	sb.WriteString(fmt.Sprintf("• 📌 Sticky-blocked: *%d* domain\n", len(stickyList)))
+	sb.WriteString(fmt.Sprintf("└ 📌 Sticky-blocked: %d domain\n", len(stickyList)))
 	if len(forceList) > 0 {
-		sb.WriteString(fmt.Sprintf("• 🔨 Force-blocked: *%d* domain\n", len(forceList)))
+		sb.WriteString(fmt.Sprintf("└ 🔨 Force-blocked : %d domain\n", len(forceList)))
 	}
-	sb.WriteString("\n")
+	sb.WriteString("|\n")
 
 	// History
-	sb.WriteString("*📜 Swap History:*\n")
-	sb.WriteString(fmt.Sprintf("• Total swap tercatat: *%d*\n", h.history.Count()))
+	sb.WriteString("📜 *SWAP HISTORY*\n")
+	sb.WriteString(fmt.Sprintf("└ Total swap : %d\n", h.history.Count()))
 	if recent := h.history.GetRecent(1); len(recent) > 0 {
-		sb.WriteString(fmt.Sprintf("• Swap terakhir: %s (%s)\n",
+		sb.WriteString(fmt.Sprintf("└ Terakhir   : %s (%s)\n",
 			recent[0].Timestamp.Format("02/01 15:04:05"), recent[0].Source))
 	}
 
-	sb.WriteString("\n━━━━━━━━━━━━━━━━━━\n")
-	sb.WriteString("_Update real-time tiap klik 🩺 STATUS._")
+	sb.WriteString("|\n")
+	sb.WriteString("🔄 Update real-time tiap klik 🩺 STATUS")
 
 	// Tombol bawah (Edit kalau dari callback, Send kalau dari text)
 	mkup := backToMain()
