@@ -22,17 +22,19 @@ func (h *Handler) handleSettings(c tele.Context) error {
 		klcStatus = "✅ aktif"
 	}
 
-	// Plain text only — no italic/underscore to avoid markdown parse errors
-	// from emoji + special chars combinations.
 	text := fmt.Sprintf(
-		"🔧 *Settings — Pilih Akun*\n\n"+
-			"Bot ini connect ke 2 platform external:\n\n"+
-			"⚙️ *Cloudflare*: %s\n"+
-			"   Untuk auto-rotate redirect rule Cloudflare.\n\n"+
-			"🔗 *Klikcepat*: %s\n"+
-			"   Untuk auto-rotate target URL biolink / shortlink.\n\n"+
-			"━━━━━━━━━━━━━━━━━━\n"+
-			"Pilih platform yang mau di-configure:",
+		"💎 *S E T T I N G S* 💎\n"+
+			"|\n"+
+			"🔌 *PLATFORM CONNECTED*\n"+
+			"└ ⚙️ Cloudflare : %s\n"+
+			"└ 🔗 Klikcepat  : %s\n"+
+			"|\n"+
+			"📐 *FUNGSI PLATFORM*\n"+
+			"└ ⚙️ Cloudflare — auto-rotate CF redirect rule\n"+
+			"└ 🔗 Klikcepat — auto-rotate biolink/shortlink\n"+
+			"└ 💬 Group Cmd — slash commands buat member\n"+
+			"|\n"+
+			"🎯 Pilih platform yg mau di-configure 👇",
 		cfStatus, klcStatus,
 	)
 	return c.Edit(text, settingsMenu(), tele.ModeMarkdown)
@@ -44,7 +46,7 @@ func (h *Handler) handleSettingsCF(c tele.Context) error {
 
 	emailDisplay := creds.CFEmail
 	if emailDisplay == "" {
-		emailDisplay = "_(belum di-set)_"
+		emailDisplay = "(belum di-set)"
 	}
 	keyDisplay := store.MaskAPIKey(creds.CFAPIKey)
 
@@ -56,17 +58,21 @@ func (h *Handler) handleSettingsCF(c tele.Context) error {
 	}
 
 	text := fmt.Sprintf(
-		"⚙️ *Settings — Akun Cloudflare*\n\n"+
-			"Di sini kamu *connect-in akun Cloudflare* ke bot. Bot butuh ini buat bisa baca & update redirect rule kamu otomatis.\n\n"+
-			"━━━━━━━━━━━━━━━━━━\n"+
-			"📧 *Email Cloudflare:*\n`%s`\n\n"+
-			"🔑 *Global API Key:*\n`%s`\n\n"+
-			"%s *Status:* %s\n"+
-			"━━━━━━━━━━━━━━━━━━\n\n"+
-			"💡 *Tips pertama kali setup:*\n"+
-			"Klik *🔄 Set Keduanya* untuk isi email + API key sekaligus (2 langkah wizard).\n\n"+
-			"🔒 _Credentials disimpan aman di file lokal (`data/credentials.json`, permission 0600)._",
-		escapeMD(emailDisplay), escapeMD(keyDisplay), statusIcon, statusText,
+		"💎 *C L O U D F L A R E* 💎\n"+
+			"|\n"+
+			"📋 *CREDENTIALS*\n"+
+			"└ 📧 Email   : `%s`\n"+
+			"└ 🔑 API Key : `%s`\n"+
+			"└ %s Status  : %s\n"+
+			"|\n"+
+			"💡 *TIPS SETUP PERTAMA*\n"+
+			"└ Klik 🔄 Set Keduanya\n"+
+			"└ Wizard 2 langkah — email + API key\n"+
+			"|\n"+
+			"🔒 *KEAMANAN*\n"+
+			"└ Disimpan di `data/credentials.json`\n"+
+			"└ File permission 0600 (owner only)",
+		emailDisplay, keyDisplay, statusIcon, statusText,
 	)
 
 	return c.Edit(text, settingsCFMenu(), tele.ModeMarkdown)
@@ -82,13 +88,16 @@ func (h *Handler) handleSettingsSetEmail(c tele.Context) error {
 		Data: map[string]string{},
 	})
 	return c.Edit(
-		"📧 *Set Email Cloudflare*\n\n"+
-			"Ketik email yang kamu pakai untuk login ke Cloudflare.\n\n"+
-			"📍 *Cara cek email kamu:*\n"+
-			"1. Buka cloudflare.com → login\n"+
-			"2. Klik foto profil kanan atas\n"+
-			"3. Lihat email di sana\n\n"+
-			"*Contoh:* `nama-kamu@gmail.com`",
+		"💎 *S E T   E M A I L* 💎\n"+
+			"|\n"+
+			"📧 *INPUT*\n"+
+			"└ Ketik email akun Cloudflare\n"+
+			"└ Contoh: `nama-kamu@gmail.com`\n"+
+			"|\n"+
+			"📍 *CARA CEK EMAIL*\n"+
+			"└ 1. Buka cloudflare.com → login\n"+
+			"└ 2. Klik foto profil kanan atas\n"+
+			"└ 3. Email muncul di situ",
 		cancelMenu(), tele.ModeMarkdown,
 	)
 }
@@ -118,15 +127,21 @@ func (h *Handler) handleSettingsSetKey(c tele.Context) error {
 		Data: map[string]string{},
 	})
 	return c.Edit(
-		"🔑 *Set Global API Key Cloudflare*\n\n"+
-			"📍 *Cara ambil Global API Key (5 langkah):*\n"+
-			"1. Buka cloudflare.com → login\n"+
-			"2. Klik foto profil kanan atas → *My Profile*\n"+
-			"3. Pilih tab *API Tokens*\n"+
-			"4. Scroll ke bagian *Global API Key* → klik *View*\n"+
-			"5. Masukin password CF → copy kode yang muncul\n\n"+
-			"Lalu paste kode tersebut di chat ini.\n\n"+
-			"⚠️ *Aman:* pesan kamu akan otomatis dihapus dari chat begitu disimpan, jadi gak terlihat orang lain di grup.",
+		"💎 *S E T   A P I   K E Y* 💎\n"+
+			"|\n"+
+			"📍 *CARA AMBIL GLOBAL API KEY*\n"+
+			"└ 1. Buka cloudflare.com → login\n"+
+			"└ 2. Foto profil kanan atas → My Profile\n"+
+			"└ 3. Tab API Tokens\n"+
+			"└ 4. Global API Key → klik View\n"+
+			"└ 5. Input password CF → copy kode\n"+
+			"|\n"+
+			"📝 *INPUT*\n"+
+			"└ Paste kode tersebut di chat ini\n"+
+			"|\n"+
+			"⚠️ *KEAMANAN*\n"+
+			"└ Pesan auto-deleted setelah disimpan\n"+
+			"└ Aman dari pengintaian di grup",
 		cancelMenu(), tele.ModeMarkdown,
 	)
 }
@@ -160,11 +175,14 @@ func (h *Handler) handleSettingsSetBoth(c tele.Context) error {
 		Data: map[string]string{},
 	})
 	return c.Edit(
-		"🔄 *Setup Email + API Key (Wizard 2 Langkah)*\n\n"+
-			"_Langkah 1 dari 2_\n\n"+
-			"📧 *Ketik email Cloudflare kamu:*\n\n"+
-			"📍 _Cara cek: cloudflare.com → klik foto profil kanan atas → lihat email_\n\n"+
-			"*Contoh:* `nama-kamu@gmail.com`",
+		"💎 *S E T U P   C F* 💎\n"+
+			"|\n"+
+			"📧 *STEP 1/2 — EMAIL*\n"+
+			"└ Ketik email akun Cloudflare\n"+
+			"└ Contoh: `nama-kamu@gmail.com`\n"+
+			"|\n"+
+			"📍 *CARA CEK EMAIL*\n"+
+			"└ Buka cloudflare.com → foto profil kanan atas",
 		cancelMenu(), tele.ModeMarkdown,
 	)
 }
@@ -178,18 +196,23 @@ func (h *Handler) wizardSettingsBothEmail(c tele.Context, sess *Session) error {
 	sess.Step = StepSettingsBothKey
 	h.sessions.Set(c.Sender().ID, sess)
 
-	return h.reply(c, 
+	return h.reply(c,
 		fmt.Sprintf(
-			"✅ Email tersimpan: `%s`\n\n"+
-				"━━━━━━━━━━━━━━━━━━\n"+
-				"_Langkah 2 dari 2_\n\n"+
-				"🔑 *Ketik Global API Key Cloudflare kamu:*\n\n"+
-				"📍 *Cara ambil:*\n"+
-				"1. cloudflare.com → klik foto profil → *My Profile*\n"+
-				"2. Tab *API Tokens* → bagian *Global API Key* → klik *View*\n"+
-				"3. Masukin password CF → copy kode → paste di sini\n\n"+
-				"🔒 _Pesan kamu akan otomatis dihapus dari chat setelah disimpan._",
-			escapeMD(email)),
+			"💎 *S E T U P   C F* 💎\n"+
+				"|\n"+
+				"✅ Email : `%s`\n"+
+				"|\n"+
+				"🔑 *STEP 2/2 — API KEY*\n"+
+				"└ Ketik Global API Key Cloudflare\n"+
+				"|\n"+
+				"📍 *CARA AMBIL*\n"+
+				"└ 1. cloudflare.com → foto profil → My Profile\n"+
+				"└ 2. Tab API Tokens → Global API Key → View\n"+
+				"└ 3. Input password → copy kode → paste sini\n"+
+				"|\n"+
+				"🔒 *KEAMANAN*\n"+
+				"└ Pesan auto-deleted setelah disimpan",
+			email),
 		cancelMenu(), tele.ModeMarkdown,
 	)
 }

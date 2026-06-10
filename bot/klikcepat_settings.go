@@ -26,33 +26,39 @@ func (h *Handler) handleSettingsKlikcepat(c tele.Context) error {
 
 	statusURL := "❌ belum di-set"
 	if baseURL != "" {
-		statusURL = "✅ `" + escapeMD(baseURL) + "`"
+		statusURL = "✅ `" + baseURL + "`"
 	}
 	statusKey := "❌ belum di-set"
 	if apiKey != "" {
-		statusKey = "✅ `" + escapeMD(store.MaskAPIKey(apiKey)) + "`"
+		statusKey = "✅ `" + store.MaskAPIKey(apiKey) + "`"
 	}
 	statusDomain := "klikcepat.com (default)"
 	if displayDomain != "" {
-		statusDomain = "✅ `" + escapeMD(displayDomain) + "`"
+		statusDomain = "✅ `" + displayDomain + "`"
 	}
 
-	text := fmt.Sprintf(
-		"🔗 *Klikcepat Settings*\n\n"+
-			"🌐 *Base URL:* %s\n"+
-			"🔑 *API Key:* %s\n"+
-			"🏷 *Display Domain:* %s\n\n"+
-			"Display Domain: untuk custom domain shared dari master account.",
-		statusURL, statusKey, statusDomain,
-	)
-
-	// Status mappings
 	mapCount := len(h.creds.GetKlikcepatDomainMap())
-	statusMappings := fmt.Sprintf("✅ `%d mapping`", mapCount)
+	statusMappings := fmt.Sprintf("✅ %d mapping", mapCount)
 	if mapCount == 0 {
 		statusMappings = "❌ belum di-set"
 	}
-	text += fmt.Sprintf("\n🏷 *Domain Mappings:* %s", statusMappings)
+
+	text := fmt.Sprintf(
+		"💎 *K L I K C E P A T   S E T T I N G S* 💎\n"+
+			"|\n"+
+			"📋 *CREDENTIALS*\n"+
+			"└ 🌐 Base URL : %s\n"+
+			"└ 🔑 API Key  : %s\n"+
+			"|\n"+
+			"🏷 *DISPLAY & MAPPING*\n"+
+			"└ Display Domain  : %s\n"+
+			"└ Domain Mappings : %s\n"+
+			"|\n"+
+			"💡 *INFO*\n"+
+			"└ Display Domain buat custom shared domain\n"+
+			"└ Domain Mapping buat resolve domain_id → host",
+		statusURL, statusKey, statusDomain, statusMappings,
+	)
 
 	m := &tele.ReplyMarkup{}
 	m.Inline(
@@ -76,9 +82,15 @@ func (h *Handler) handleSettingsKlikcepat(c tele.Context) error {
 
 func (h *Handler) handleSettingsKlikcepatSetURL(c tele.Context) error {
 	h.cancelPriorPrompt(c, StepSettingsKlikcepatURL)
-	prompt := "🌐 *Set Klikcepat Base URL*\n\n" +
-		"Ketik URL klikcepat kamu (tanpa trailing slash).\n\n" +
-		"*Contoh:* `https://klikcepat.com`"
+	prompt := "💎 *S E T   B A S E   U R L* 💎\n" +
+		"|\n" +
+		"🌐 *INPUT*\n" +
+		"└ Ketik URL klikcepat (tanpa trailing slash)\n" +
+		"└ Contoh: `https://klikcepat.com`\n" +
+		"|\n" +
+		"💡 *NOTE*\n" +
+		"└ Default: klikcepat.com\n" +
+		"└ Bisa custom kalau lo deploy Pixly sendiri"
 	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
 	if msg == nil {
 		msg = c.Message()
@@ -107,13 +119,19 @@ func (h *Handler) wizardSettingsKlikcepatURL(c tele.Context, sess *Session) erro
 
 func (h *Handler) handleSettingsKlikcepatSetKey(c tele.Context) error {
 	h.cancelPriorPrompt(c, StepSettingsKlikcepatKey)
-	prompt := "🔑 *Set Klikcepat API Key*\n\n" +
-		"Ketik API key dari klikcepat (normal admin account).\n\n" +
-		"📍 *Cara ambil:*\n" +
-		"1. Login klikcepat → Account → API\n" +
-		"2. Klik *Generate API Key*\n" +
-		"3. Copy → paste di sini\n\n" +
-		"🔒 _Pesan kamu akan otomatis dihapus setelah disimpan._"
+	prompt := "💎 *S E T   A P I   K E Y* 💎\n" +
+		"|\n" +
+		"🔑 *INPUT*\n" +
+		"└ Paste API key klikcepat di chat\n" +
+		"|\n" +
+		"📍 *CARA AMBIL*\n" +
+		"└ 1. Login klikcepat → Account\n" +
+		"└ 2. Tab API\n" +
+		"└ 3. Klik Generate API Key\n" +
+		"└ 4. Copy → paste sini\n" +
+		"|\n" +
+		"🔒 *KEAMANAN*\n" +
+		"└ Pesan auto-deleted setelah disimpan"
 	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
 	if msg == nil {
 		msg = c.Message()

@@ -34,21 +34,30 @@ func (h *Handler) handleGroupCmd(c tele.Context) error {
 	cmds := h.groupCmds.GetAll()
 
 	var sb strings.Builder
-	sb.WriteString("💬 *Group Commands*\n═══════════════════════════\n\n")
-	sb.WriteString("Slash commands buat member di group. Member ketik `/cmd` → bot reply link.\n\n")
+	sb.WriteString("💎 *G R O U P   C O M M A N D S* 💎\n")
+	sb.WriteString("|\n")
+	sb.WriteString("💬 *FUNGSI*\n")
+	sb.WriteString("└ Slash commands buat member di group\n")
+	sb.WriteString("└ Member ketik /cmd → bot reply link aktif\n")
+	sb.WriteString("|\n")
 
 	if len(cmds) == 0 {
-		sb.WriteString("📭 Belum ada command terdaftar.\n\nKlik ➕ buat tambah.")
+		sb.WriteString("📭 *EMPTY*\n")
+		sb.WriteString("└ Belum ada command terdaftar\n")
+		sb.WriteString("|\n")
+		sb.WriteString("🎯 *ACTION*\n")
+		sb.WriteString("└ Klik ➕ Tambah Command buat mulai")
 	} else {
-		sb.WriteString("*Terdaftar:*\n")
-		for i, gc := range cmds {
-			sb.WriteString(fmt.Sprintf("%d. /%s → 📂 *%s* (id %d)\n",
-				i+1, escapeMD(gc.Command), escapeMD(gc.ProjectName), gc.ProjectID))
+		sb.WriteString("📋 *TERDAFTAR*\n")
+		for _, gc := range cmds {
+			sb.WriteString(fmt.Sprintf("└ /%s → 📂 *%s* (id %d)\n",
+				escapeMD(gc.Command), escapeMD(gc.ProjectName), gc.ProjectID))
 			if gc.Description != "" {
-				sb.WriteString(fmt.Sprintf("   📝 %s\n", escapeMD(gc.Description)))
+				sb.WriteString(fmt.Sprintf("   └ 📝 %s\n", escapeMD(gc.Description)))
 			}
 		}
-		sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\nTotal: *%d* command", len(cmds)))
+		sb.WriteString("|\n")
+		sb.WriteString(fmt.Sprintf("📊 *TOTAL*\n└ %d command", len(cmds)))
 	}
 
 	m := &tele.ReplyMarkup{}
@@ -78,10 +87,20 @@ func (h *Handler) handleGroupCmdAdd(c tele.Context) error {
 		PromptMsg: c.Message(),
 	})
 	return c.Edit(
-		"➕ *Tambah Group Command*\n\n"+
-			"Ketik *nama command* (tanpa `/`).\n\n"+
-			"*Contoh:* `rtp`, `daftar`, `bukti`, `wa`\n\n"+
-			"_Rule: huruf kecil semua, max 32 karakter, gak boleh ada spasi atau special char._",
+		"💎 *T A M B A H   C O M M A N D* 💎\n"+
+			"|\n"+
+			"📝 *STEP 1/3 — NAMA COMMAND*\n"+
+			"└ Ketik nama tanpa `/`\n"+
+			"└ Contoh: `rtp`, `daftar`, `bukti`, `wa`\n"+
+			"|\n"+
+			"📐 *RULE*\n"+
+			"└ Huruf kecil semua (a-z 0-9 _)\n"+
+			"└ Max 32 karakter\n"+
+			"└ Gak boleh ada spasi/special char\n"+
+			"|\n"+
+			"🎯 *NEXT STEPS*\n"+
+			"└ Step 2: pick project klikcepat\n"+
+			"└ Step 3: input deskripsi (optional)",
 		cancelMenu(), tele.ModeMarkdown)
 }
 
@@ -133,7 +152,15 @@ func (h *Handler) wizardGroupCmdInputName(c tele.Context, sess *Session) error {
 	m.Inline(rows...)
 
 	return h.reply(c,
-		fmt.Sprintf("✅ Command: */%s*\n\n📂 *Step 2/3: Pick Project*\n\nPilih project klikcepat — bot bakal fetch semua link di project ini saat command dipake:", cmd),
+		fmt.Sprintf(
+			"💎 *T A M B A H   C O M M A N D* 💎\n"+
+				"|\n"+
+				"✅ Command : */%s*\n"+
+				"|\n"+
+				"📂 *STEP 2/3 — PICK PROJECT*\n"+
+				"└ Pilih project klikcepat\n"+
+				"└ Bot fetch link di project ini saat /cmd dipake",
+			cmd),
 		m, tele.ModeMarkdown)
 }
 
@@ -164,11 +191,16 @@ func (h *Handler) handleGroupCmdPickProject(c tele.Context) error {
 
 	return c.Edit(
 		fmt.Sprintf(
-			"✅ Project: *%s* (id %d)\n\n"+
-				"📝 *Step 3/3: Description*\n\n"+
-				"Ketik deskripsi singkat (max 256 char). Ini muncul di autocomplete Telegram pas user ketik /\n\n"+
-				"*Contoh:* `Daftar link RTP MAHASLOT`\n\n"+
-				"Kirim `-` buat skip deskripsi.",
+			"💎 *T A M B A H   C O M M A N D* 💎\n"+
+				"|\n"+
+				"✅ Project : *%s* (id %d)\n"+
+				"|\n"+
+				"📝 *STEP 3/3 — DESCRIPTION*\n"+
+				"└ Max 256 char\n"+
+				"└ Muncul di autocomplete Telegram (`/`)\n"+
+				"└ Contoh: `Daftar link RTP MAHASLOT`\n"+
+				"|\n"+
+				"💡 Kirim `-` buat skip deskripsi",
 			escapeMD(proj.Name), pid),
 		cancelMenu(), tele.ModeMarkdown)
 }
