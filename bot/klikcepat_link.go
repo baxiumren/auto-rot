@@ -464,6 +464,8 @@ func (h *Handler) handleKlikcepatEdit(c tele.Context) error {
 			ShowAlert: true,
 		})
 	}
+	// Clear session — kalau ada residual dari prev search
+	h.sessions.Delete(c.Sender().ID)
 	m := &tele.ReplyMarkup{}
 	m.Inline(
 		m.Row(
@@ -481,38 +483,138 @@ func (h *Handler) handleKlikcepatEdit(c tele.Context) error {
 
 // handleKlikcepatEditShortlink — paginated picker untuk shortlink.
 func (h *Handler) handleKlikcepatEditShortlink(c tele.Context) error {
-	return h.renderKlikcepatEditPicker(c, "link", "🔗 SHORTLINK", cbKlikcepatEditShortlink)
+	return h.renderKlikcepatEditPicker(c, "link", "🔗 SHORTLINK", cbKlikcepatEditShortlink, "")
 }
 
 // handleKlikcepatEditBiolink — paginated picker untuk biolink.
 func (h *Handler) handleKlikcepatEditBiolink(c tele.Context) error {
-	return h.renderKlikcepatEditPicker(c, "biolink", "📄 BIOLINK", cbKlikcepatEditBiolink)
+	return h.renderKlikcepatEditPicker(c, "biolink", "📄 BIOLINK", cbKlikcepatEditBiolink, "")
 }
 
-func (h *Handler) renderKlikcepatEditPicker(c tele.Context, linkType, typeLabel, navCb string) error {
-	pageStr := extractParam(c)
-	page := 0
-	if pageStr != "" {
-		page, _ = strconv.Atoi(pageStr)
+// handleKlikcepatEditSearchSL — prompt user buat input search query (shortlink).
+func (h *Handler) handleKlikcepatEditSearchSL(c tele.Context) error {
+	h.sessions.Set(c.Sender().ID, &Session{
+		Step:      StepKlikcepatEditSearchInputSL,
+		Data:      map[string]string{},
+		PromptMsg: c.Message(),
+	})
+	return c.Edit(
+		"🔍 *Search SHORTLINK*\n\n"+
+			"Ketik query buat cari berdasarkan *slug* atau *title*.\n\n"+
+			"*Contoh:* `rtp`, `mahaslot`, `daftar`\n\n"+
+			"Case-insensitive — `RTP` = `rtp`. Substring match.",
+		cancelMenu(), tele.ModeMarkdown)
+}
+
+// handleKlikcepatEditSearchBL — prompt user buat input search query (biolink).
+func (h *Handler) handleKlikcepatEditSearchBL(c tele.Context) error {
+	h.sessions.Set(c.Sender().ID, &Session{
+		Step:      StepKlikcepatEditSearchInputBL,
+		Data:      map[string]string{},
+		PromptMsg: c.Message(),
+	})
+	return c.Edit(
+		"🔍 *Search BIOLINK*\n\n"+
+			"Ketik query buat cari berdasarkan *slug* atau *title*.\n\n"+
+			"*Contoh:* `mahaslot`, `bio`, `promo`\n\n"+
+			"Case-insensitive — substring match.",
+		cancelMenu(), tele.ModeMarkdown)
+}
+
+// wizardKlikcepatEditSearchSL — user typed query, render filtered picker.
+func (h *Handler) wizardKlikcepatEditSearchSL(c tele.Context, sess *Session) error {
+	query := strings.TrimSpace(c.Text())
+	h.sessions.Delete(c.Sender().ID)
+	if query == "" {
+		return h.reply(c, "❌ Query kosong. Klik ✏️ Edit Link → 🔗 SHORTLINK lagi.",
+			backToKlikcepat(), tele.ModeMarkdown)
+	}
+	return h.renderKlikcepatEditPicker(c, "link", "🔗 SHORTLINK", cbKlikcepatEditShortlink, query)
+}
+
+// wizardKlikcepatEditSearchBL — same for biolink.
+func (h *Handler) wizardKlikcepatEditSearchBL(c tele.Context, sess *Session) error {
+	query := strings.TrimSpace(c.Text())
+	h.sessions.Delete(c.Sender().ID)
+	if query == "" {
+		return h.reply(c, "❌ Query kosong. Klik ✏️ Edit Link → 📄 BIOLINK lagi.",
+			backToKlikcepat(), tele.ModeMarkdown)
+	}
+	return h.renderKlikcepatEditPicker(c, "biolink", "📄 BIOLINK", cbKlikcepatEditBiolink, query)
+}
+
+// handleKlikcepatEditSearchPage — pagination dalam search result.
+// Param format: "type|page|query" — type = link/biolink
+func (h *Handler) handleKlikcepatEditSearchPage(c tele.Context) error {
+	param := extractParam(c)
+	parts := strings.SplitN(param, "|", 3)
+	if len(parts) < 3 {
+		return h.handleKlikcepatEdit(c)
+	}
+	linkType := parts[0]
+	page, _ := strconv.Atoi(parts[1])
+	query := parts[2]
+
+	typeLabel := "🔗 SHORTLINK"
+	navCb := cbKlikcepatEditShortlink
+	if linkType == "biolink" {
+		typeLabel = "📄 BIOLINK"
+		navCb = cbKlikcepatEditBiolink
 	}
 
+	return h.renderKlikcepatEditPickerPage(c, linkType, typeLabel, navCb, query, page)
+}
+
+// renderKlikcepatEditPicker — initial render (page=0).
+func (h *Handler) renderKlikcepatEditPicker(c tele.Context, linkType, typeLabel, navCb, query string) error {
+	pageStr := extractParam(c)
+	page := 0
+	if pageStr != "" && query == "" { // page param only valid in non-search nav
+		page, _ = strconv.Atoi(pageStr)
+	}
+	return h.renderKlikcepatEditPickerPage(c, linkType, typeLabel, navCb, query, page)
+}
+
+// renderKlikcepatEditPickerPage — common renderer dengan query + page param explicit.
+func (h *Handler) renderKlikcepatEditPickerPage(c tele.Context, linkType, typeLabel, navCb, query string, page int) error {
 	c.Edit("⏳ Loading links...", tele.ModeMarkdown)
 	allLinks, err := h.klikcepat.ListLinks(linkType)
 	if err != nil {
 		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
 			backToKlikcepat(), tele.ModeMarkdown)
 	}
-	// Client-side strict filter (Pixly API ?type= sering di-ignore)
+	// Client-side strict type filter
 	var links []klikcepat.Link
 	for _, l := range allLinks {
 		if l.Type == linkType {
 			links = append(links, l)
 		}
 	}
+
+	// Apply search query — match slug (URL) OR title, case-insensitive substring
+	if query != "" {
+		q := strings.ToLower(query)
+		var filtered []klikcepat.Link
+		for _, l := range links {
+			if strings.Contains(strings.ToLower(l.URL), q) ||
+				strings.Contains(strings.ToLower(l.Title), q) {
+				filtered = append(filtered, l)
+			}
+		}
+		links = filtered
+	}
+
 	if len(links) == 0 {
-		return c.Edit(
-			fmt.Sprintf("📭 *Belum ada %s di klikcepat lo.*", typeLabel),
-			backToKlikcepat(), tele.ModeMarkdown)
+		emptyMsg := fmt.Sprintf("📭 *Belum ada %s di klikcepat lo.*", typeLabel)
+		if query != "" {
+			emptyMsg = fmt.Sprintf("🔍 *Gak ada %s yang match dengan* `%s`*.*\n\nCoba query lain atau lihat semua link.",
+				typeLabel, escapeMD(query))
+		}
+		m := &tele.ReplyMarkup{}
+		m.Inline(
+			m.Row(m.Data("🔙 Kembali", cbKlikcepatEdit)),
+		)
+		return c.Edit(emptyMsg, m, tele.ModeMarkdown)
 	}
 
 	userMap := h.creds.GetKlikcepatDomainMap()
@@ -532,6 +634,22 @@ func (h *Handler) renderKlikcepatEditPicker(c tele.Context, linkType, typeLabel,
 
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
+
+	// Search button (or query indicator) row di atas list
+	searchCb := cbKlikcepatEditSearchSL
+	if linkType == "biolink" {
+		searchCb = cbKlikcepatEditSearchBL
+	}
+	if query != "" {
+		// Active search → show query + reset button
+		rows = append(rows, m.Row(
+			m.Data(fmt.Sprintf("🔍 \"%s\"", truncate(query, 30)), cbNoop),
+			m.Data("❌ Reset", navCb),
+		))
+	} else {
+		rows = append(rows, m.Row(m.Data("🔍 Cari (slug/title)", searchCb)))
+	}
+
 	icon := "🔗"
 	if linkType == "biolink" {
 		icon = "📄"
@@ -549,21 +667,40 @@ func (h *Handler) renderKlikcepatEditPicker(c tele.Context, linkType, typeLabel,
 	// Pagination row
 	if totalPages > 1 {
 		var navRow tele.Row
-		if page > 0 {
-			navRow = append(navRow, m.Data("⬅️ Prev", navCb, strconv.Itoa(page-1)))
-		}
-		navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
-		if page < totalPages-1 {
-			navRow = append(navRow, m.Data("Next ➡️", navCb, strconv.Itoa(page+1)))
+		if query == "" {
+			// Normal nav: use page-only param
+			if page > 0 {
+				navRow = append(navRow, m.Data("⬅️ Prev", navCb, strconv.Itoa(page-1)))
+			}
+			navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
+			if page < totalPages-1 {
+				navRow = append(navRow, m.Data("Next ➡️", navCb, strconv.Itoa(page+1)))
+			}
+		} else {
+			// Search nav: encode type|page|query in param
+			prevParam := fmt.Sprintf("%s|%d|%s", linkType, page-1, query)
+			nextParam := fmt.Sprintf("%s|%d|%s", linkType, page+1, query)
+			if page > 0 {
+				navRow = append(navRow, m.Data("⬅️ Prev", cbKlikcepatEditSearchPage, prevParam))
+			}
+			navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
+			if page < totalPages-1 {
+				navRow = append(navRow, m.Data("Next ➡️", cbKlikcepatEditSearchPage, nextParam))
+			}
 		}
 		rows = append(rows, navRow)
 	}
 	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbKlikcepatEdit)))
 	m.Inline(rows...)
 
+	header := fmt.Sprintf("✏️ *Edit %s — Pilih link*", typeLabel)
+	if query != "" {
+		header = fmt.Sprintf("✏️ *Edit %s — Search result*\n🔍 Query: `%s`", typeLabel, escapeMD(query))
+	}
+
 	return c.Edit(
-		fmt.Sprintf("✏️ *Edit %s — Pilih link*\n\nPage %d/%d • Total %d link",
-			typeLabel, page+1, totalPages, total),
+		fmt.Sprintf("%s\n\nPage %d/%d • Total %d link",
+			header, page+1, totalPages, total),
 		m, tele.ModeMarkdown)
 }
 

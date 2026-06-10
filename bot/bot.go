@@ -519,6 +519,12 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleKlikcepatEditShortlink(c)
 	case cbKlikcepatEditBiolink:
 		return h.handleKlikcepatEditBiolink(c)
+	case cbKlikcepatEditSearchSL:
+		return h.handleKlikcepatEditSearchSL(c)
+	case cbKlikcepatEditSearchBL:
+		return h.handleKlikcepatEditSearchBL(c)
+	case cbKlikcepatEditSearchPage:
+		return h.handleKlikcepatEditSearchPage(c)
 	case cbKlikcepatEditPick:
 		return h.handleKlikcepatEditPick(c)
 	case cbKlikcepatEditField:
@@ -727,6 +733,10 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardGroupCmdInputName(c, sess)
 	case StepGroupCmdInputDesc:
 		return h.wizardGroupCmdInputDesc(c, sess)
+	case StepKlikcepatEditSearchInputSL:
+		return h.wizardKlikcepatEditSearchSL(c, sess)
+	case StepKlikcepatEditSearchInputBL:
+		return h.wizardKlikcepatEditSearchBL(c, sess)
 
 	// Klikcepat Bulk Setup Rotator
 	case StepKlikcepatRotBulkPick, StepKlikcepatRotBulkPool:

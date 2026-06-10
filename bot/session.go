@@ -98,6 +98,10 @@ const (
 	// Group Commands wizard
 	StepGroupCmdInputName     Step = "gcmd_input_name"
 	StepGroupCmdInputDesc     Step = "gcmd_input_desc"
+
+	// Klikcepat Edit search query
+	StepKlikcepatEditSearchInputSL Step = "klc_edit_srch_in_sl"
+	StepKlikcepatEditSearchInputBL Step = "klc_edit_srch_in_bl"
 )
 
 type Session struct {
