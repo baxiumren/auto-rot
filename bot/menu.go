@@ -278,19 +278,33 @@ const (
 		"└ Min 2 domain di pool Monitor\n" +
 		"└ Udah ada CF Rule / Klikcepat link"
 
-	textKlikcepat = "🔗 *KLIKCEPAT — Bio Link & Short URL*\n\n" +
-		"Manage link & project di klikcepat.com langsung dari bot.\n\n" +
-		"*Yang bisa dilakuin:*\n" +
-		"• ➕ *Tambah Link* — bikin shortlink/biolink page baru\n" +
-		"• 📋 *List Link* — liat semua link kamu (paginated)\n" +
-		"• ✏️ *Edit Link* — update title/slug/target URL/project\n" +
-		"• 🗑 *Hapus Link* — delete link permanent\n" +
-		"• 📁 *Projects* — manage project grouping\n\n" +
-		"_💡 Auto-Swap setup ada di menu *🔄 Auto Rotator* (unified untuk CF + Klikcepat)._"
+	textKlikcepat = "💎 *K L I K C E P A T* 💎\n" +
+		"|\n" +
+		"🔗 *FUNGSI*\n" +
+		"└ Manage link & project di klikcepat.com\n" +
+		"└ Langsung dari bot — gak perlu buka web\n" +
+		"|\n" +
+		"🎯 *YG BISA DILAKUIN*\n" +
+		"└ ➕ Tambah Link — bikin shortlink/biolink baru\n" +
+		"└ 📋 List Link — liat semua link (paginated)\n" +
+		"└ ✏️ Edit Link — update title/slug/target/project\n" +
+		"└ 🗑 Hapus Link — delete permanent\n" +
+		"└ 📁 Projects — manage project grouping\n" +
+		"|\n" +
+		"💡 *AUTO-SWAP*\n" +
+		"└ Setup di menu 🔄 Auto Rotator\n" +
+		"└ Unified untuk CF + Klikcepat"
 
-	textKlikcepatProjects = "📁 *KLIKCEPAT — Projects*\n\n" +
-		"Group link berdasarkan project (misal: KONTAK, PROMO, RTP).\n\n" +
-		"Project bisa di-assign saat create link, dan bisa difilter di List Link."
+	textKlikcepatProjects = "💎 *K L I K C E P A T   P R O J E C T S* 💎\n" +
+		"|\n" +
+		"📁 *FUNGSI*\n" +
+		"└ Group link by project\n" +
+		"└ Contoh: KONTAK, PROMO, RTP, DAFTAR\n" +
+		"|\n" +
+		"🎯 *PEMAKAIAN*\n" +
+		"└ Assign saat create link\n" +
+		"└ Filter di List Link\n" +
+		"└ Source utama Group Commands (`/rtp`, dll)"
 )
 
 // ─── Main Menu ────────────────────────────────────────────────────────────────

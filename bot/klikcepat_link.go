@@ -31,11 +31,15 @@ func (h *Handler) handleKlikcepatAdd(c tele.Context) error {
 	}
 	h.cancelPriorPrompt(c, StepKlikcepatAddType)
 
-	prompt := "➕ *Tambah Link Klikcepat — Step 1/5: Pilih Tipe*\n\n" +
-		"_Tipe link menentukan behavior klikcepat:_\n" +
-		"• *🔗 Shortlink* — URL pendek redirect ke 1 target\n" +
-		"• *📄 Biolink* — landing page bio (kayak Linktree)\n" +
-		"• *📇 VCard / 📅 Event* — kartu nama / event link"
+	prompt := "💎 *T A M B A H   L I N K* 💎\n" +
+		"|\n" +
+		"🎯 *STEP 1/5 — PILIH TIPE*\n" +
+		"└ 🔗 Shortlink — URL pendek ke 1 target\n" +
+		"└ 📄 Biolink — landing page bio (kayak Linktree)\n" +
+		"└ 📇 VCard — kartu nama digital\n" +
+		"└ 📅 Event — event/RSVP link\n" +
+		"|\n" +
+		"💡 Klik tipe di bawah 👇"
 
 	m := &tele.ReplyMarkup{}
 	m.Inline(
@@ -77,7 +81,13 @@ func (h *Handler) handleKlikcepatAddType(c tele.Context) error {
 	h.sessions.Set(c.Sender().ID, sess)
 
 	prompt := fmt.Sprintf(
-		"➕ *Step 2/5: Title*\n\nTipe: *%s* ✅\n\nKetik *title* untuk link ini:\n\n*Contoh:* `Promo Maha 2026`",
+		"💎 *T A M B A H   L I N K* 💎\n"+
+			"|\n"+
+			"✅ Tipe : *%s*\n"+
+			"|\n"+
+			"📝 *STEP 2/5 — TITLE*\n"+
+			"└ Ketik title buat link ini\n"+
+			"└ Contoh: `Promo Maha 2026`",
 		linkType)
 	h.bot.Edit(sess.PromptMsg, prompt, cancelMenu(), tele.ModeMarkdown)
 	return nil
@@ -94,9 +104,17 @@ func (h *Handler) wizardKlikcepatAddTitle(c tele.Context, sess *Session) error {
 	h.sessions.Set(c.Sender().ID, sess)
 
 	prompt := fmt.Sprintf(
-		"➕ *Step 3/5: Slug*\n\nTitle: *%s* ✅\n\n"+
-			"Ketik *slug* (path URL setelah klikcepat.com/) atau ketik `-` untuk auto-generate:\n\n"+
-			"*Contoh:* `promo-maha` → klikcepat.com/promo-maha", escapeMD(title))
+		"💎 *T A M B A H   L I N K* 💎\n"+
+			"|\n"+
+			"✅ Title : *%s*\n"+
+			"|\n"+
+			"📝 *STEP 3/5 — SLUG*\n"+
+			"└ Path URL setelah klikcepat.com/\n"+
+			"└ Contoh: `promo-maha`\n"+
+			"   → klikcepat.com/promo-maha\n"+
+			"|\n"+
+			"💡 Ketik `-` buat auto-generate slug random",
+		escapeMD(title))
 	newMsg, _ := h.bot.Send(c.Chat(),
 		userTag(c.Sender())+" "+prompt,
 		&tele.SendOptions{ReplyTo: c.Message(), ParseMode: tele.ModeMarkdown, ReplyMarkup: cancelMenu()})
@@ -122,9 +140,16 @@ func (h *Handler) wizardKlikcepatAddSlug(c tele.Context, sess *Session) error {
 		slugDisplay = "(auto)"
 	}
 	prompt := fmt.Sprintf(
-		"➕ *Step 4/5: Location URL*\n\nSlug: *%s* ✅\n\n"+
-			"Ketik *target URL* (kemana redirect tujunya):\n\n"+
-			"*Contoh:* `https://maha-supreme.com/daftar`", escapeMD(slugDisplay))
+		"💎 *T A M B A H   L I N K* 💎\n"+
+			"|\n"+
+			"✅ Slug : *%s*\n"+
+			"|\n"+
+			"🎯 *STEP 4/5 — LOCATION URL*\n"+
+			"└ Ketik target URL (kemana redirect)\n"+
+			"└ Contoh: `https://maha-supreme.com/daftar`\n"+
+			"|\n"+
+			"💡 Wajib lengkap (with `https://`)",
+		escapeMD(slugDisplay))
 	newMsg, _ := h.bot.Send(c.Chat(),
 		userTag(c.Sender())+" "+prompt,
 		&tele.SendOptions{ReplyTo: c.Message(), ParseMode: tele.ModeMarkdown, ReplyMarkup: cancelMenu()})
@@ -164,8 +189,16 @@ func (h *Handler) wizardKlikcepatAddLocation(c tele.Context, sess *Session) erro
 	m.Inline(rows...)
 
 	prompt := fmt.Sprintf(
-		"➕ *Step 5/5: Project*\n\nLocation: *%s* ✅\n\n"+
-			"Pilih project (atau Skip):", escapeMD(loc))
+		"💎 *T A M B A H   L I N K* 💎\n"+
+			"|\n"+
+			"✅ Location : `%s`\n"+
+			"|\n"+
+			"📁 *STEP 5/5 — PROJECT*\n"+
+			"└ Pilih project (atau Skip)\n"+
+			"└ Project = group buat command /rtp dll\n"+
+			"|\n"+
+			"💡 Bisa di-edit nanti via ✏️ Edit Link",
+		loc)
 	newMsg, _ := h.bot.Send(c.Chat(),
 		userTag(c.Sender())+" "+prompt,
 		&tele.SendOptions{ReplyTo: c.Message(), ParseMode: tele.ModeMarkdown, ReplyMarkup: m})
@@ -475,9 +508,11 @@ func (h *Handler) handleKlikcepatEdit(c tele.Context) error {
 		m.Row(m.Data("❌ Batal", cbKlikcepat)),
 	)
 	return c.Edit(
-		"✏️ *Edit Link — Pilih Tipe*\n\n"+
-			"• 📄 *BIOLINK* — edit bio page\n"+
-			"• 🔗 *SHORTLINK* — edit shortlink",
+		"💎 *E D I T   L I N K* 💎\n"+
+			"|\n"+
+			"🎯 *PILIH TIPE*\n"+
+			"└ 📄 BIOLINK — edit bio page\n"+
+			"└ 🔗 SHORTLINK — edit shortlink",
 		m, tele.ModeMarkdown)
 }
 
@@ -723,13 +758,19 @@ func (h *Handler) handleKlikcepatEditPick(c tele.Context) error {
 	})
 
 	prompt := fmt.Sprintf(
-		"✏️ *Edit Link*\n\n"+
-			"📛 Title: *%s*\n"+
-			"🔗 Slug: `%s`\n"+
-			"🎯 Target: `%s`\n"+
-			"📌 Type: *%s*\n\n"+
-			"Pilih field yang mau di-edit:",
-		escapeMD(link.Title), escapeMD(link.URL), escapeMD(link.LocationURL), link.Type)
+		"💎 *E D I T   L I N K* 💎\n"+
+			"|\n"+
+			"📋 *INFO LINK*\n"+
+			"└ 📌 Type   : *%s*\n"+
+			"└ 📛 Title  : *%s*\n"+
+			"└ 🔗 Slug   : `%s`\n"+
+			"└ 🎯 Target : `%s`\n"+
+			"|\n"+
+			"🎯 *PILIH FIELD YG MAU DI-EDIT*\n"+
+			"└ 📛 Title — nama display\n"+
+			"└ 🔗 Slug — bagian URL (klikcepat.lat/SLUG)\n"+
+			"└ 🎯 Location URL — destination redirect",
+		link.Type, escapeMD(link.Title), link.URL, link.LocationURL)
 
 	m := &tele.ReplyMarkup{}
 	m.Inline(
@@ -844,12 +885,17 @@ func (h *Handler) handleKlikcepatDeletePick(c tele.Context) error {
 	}
 
 	prompt := fmt.Sprintf(
-		"⚠️ *Konfirmasi Hapus*\n\n"+
-			"📛 Title: *%s*\n"+
-			"🔗 Slug: `%s`\n"+
-			"🎯 Target: `%s`\n\n"+
-			"Yakin mau hapus? Action ini *tidak bisa di-undo*.",
-		escapeMD(link.Title), escapeMD(link.URL), escapeMD(link.LocationURL))
+		"💎 *H A P U S   L I N K* 💎\n"+
+			"|\n"+
+			"📋 *INFO LINK*\n"+
+			"└ 📛 Title  : *%s*\n"+
+			"└ 🔗 Slug   : `%s`\n"+
+			"└ 🎯 Target : `%s`\n"+
+			"|\n"+
+			"⚠️ *KONFIRMASI*\n"+
+			"└ Yakin mau hapus?\n"+
+			"└ Action ini *PERMANENT* — gak bisa di-undo",
+		escapeMD(link.Title), link.URL, link.LocationURL)
 
 	m := &tele.ReplyMarkup{}
 	m.Inline(
