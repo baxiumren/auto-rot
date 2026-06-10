@@ -215,10 +215,25 @@ const (
 		"3️⃣ *🔄 Auto Rotator* — link rule + pool → bot kerja sendiri\n\n" +
 		"🎯 _Pilih menu di bawah buat mulai:_"
 
-	textMonitor = "📡 *Monitor — Pantau Domain*\n\n" +
-		"Section ini buat *mendaftarkan domain* yang mau dipantau apakah kena nawala Kominfo (TrustPositif).\n\n" +
-		"Domain dikelompokkan per *label* (contoh: KWAI, MONEYSITE, STOCK-MS). Nanti label ini dipakai sebagai *pool* (kumpulan domain cadangan) di Auto Rotator.\n\n" +
-		"*Tips:* satu label sebaiknya berisi *domain-domain serupa* (misal semua untuk halaman promo Kwai). Kalau ada yang kena blokir, bot ganti ke domain lain di label yang sama."
+	textMonitor = "💎 *M O N I T O R   D O M A I N* 💎\n" +
+		"|\n" +
+		"📡 *FUNGSI*\n" +
+		"└ Daftarin domain yg mau dipantau\n" +
+		"└ Cek nawala Kominfo + TrustPositif + Nawala\n" +
+		"└ Group per label = pool untuk Auto Rotator\n" +
+		"|\n" +
+		"📂 *CONTOH LABEL*\n" +
+		"└ KWAI — semua domain promo Kwai\n" +
+		"└ MONEYSITE — money page utama\n" +
+		"└ STOCK-MS — cadangan MoneySite\n" +
+		"└ RTP — page RTP\n" +
+		"|\n" +
+		"💡 *TIPS*\n" +
+		"└ 1 label = domain serupa (fungsi sama)\n" +
+		"└ Kalau 1 keblock → bot swap ke label yg sama\n" +
+		"└ Min 2 domain per label biar swap ada cadangan\n" +
+		"|\n" +
+		"🎯 Pilih action di bawah 👇"
 
 	textCF = "⚙️ *CF Redirect — Cloudflare Redirect Rules*\n\n" +
 		"Section ini buat *menghubungkan bot dengan redirect rule Cloudflare* kamu.\n\n" +

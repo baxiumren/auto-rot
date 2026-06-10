@@ -78,14 +78,18 @@ func (h *Handler) handleMonitor(c tele.Context) error {
 
 func (h *Handler) handleMonitorAdd(c tele.Context) error {
 	h.cancelPriorPrompt(c, StepMonitorAddDomain)
-	prompt := "📝 *Tambah Domain ke Monitor*\n\n" +
-		"_Langkah 1 dari 2_\n\n" +
-		"Ketik nama domain yang mau dipantau:\n\n" +
-		"*Contoh format yang benar:*\n" +
-		"• `example.com`\n" +
-		"• `sub.example.com`\n" +
-		"• `https://example.com` (bot otomatis bersihkan)\n\n" +
-		"_Setelah ini kamu pilih *label/kategori* (pengelompokan)._"
+	prompt := "💎 *T A M B A H   D O M A I N* 💎\n" +
+		"|\n" +
+		"📝 *STEP 1/2 — INPUT DOMAIN*\n" +
+		"└ Ketik nama domain yg mau dipantau\n" +
+		"|\n" +
+		"✅ *FORMAT YG BENAR*\n" +
+		"└ `example.com`\n" +
+		"└ `sub.example.com`\n" +
+		"└ `https://example.com` (auto-clean)\n" +
+		"|\n" +
+		"🎯 *NEXT*\n" +
+		"└ Step 2: pilih label/kategori"
 	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
 	if msg == nil {
 		msg = c.Message()
@@ -303,10 +307,18 @@ func (h *Handler) doAddDomain(c tele.Context, sess *Session, label string) error
 
 func (h *Handler) handleMonitorRemove(c tele.Context) error {
 	h.cancelPriorPrompt(c, StepMonitorRemove)
-	prompt := "🗑 *Hapus Domain dari Monitor*\n\n" +
-		"Ketik nama domain yang mau dihapus dari list pemantauan:\n\n" +
-		"_Contoh:_ `example.com`\n\n" +
-		"⚠️ Domain cuma dihapus dari bot — *gak mempengaruhi setting Cloudflare* kamu."
+	prompt := "💎 *H A P U S   D O M A I N* 💎\n" +
+		"|\n" +
+		"🗑 *FUNGSI*\n" +
+		"└ Hapus domain dari list Monitor\n" +
+		"|\n" +
+		"📝 *INPUT*\n" +
+		"└ Ketik domain yg mau dihapus\n" +
+		"└ Contoh: `example.com`\n" +
+		"|\n" +
+		"⚠️ *INFO PENTING*\n" +
+		"└ Cuma hapus dari bot tracking\n" +
+		"└ Gak ngaruh setting Cloudflare lo"
 	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
 	if msg == nil {
 		msg = c.Message()
@@ -350,11 +362,19 @@ func (h *Handler) wizardMonitorRemove(c tele.Context, sess *Session) error {
 
 func (h *Handler) handleMonitorCheck(c tele.Context) error {
 	h.cancelPriorPrompt(c, StepMonitorCheck)
-	prompt := "🔍 *Cek Status Domain Manual*\n\n" +
-		"Bot akan cek apakah domain ini kena nawala (terblokir Kominfo) atau aman.\n\n" +
-		"Ketik domain yang mau dicek:\n\n" +
-		"_Contoh:_ `example.com`\n\n" +
-		"_(Domain gak harus terdaftar di Monitor — kamu bisa cek domain apapun.)_"
+	prompt := "💎 *C E K   D O M A I N* 💎\n" +
+		"|\n" +
+		"🔍 *FUNGSI*\n" +
+		"└ Cek manual apakah domain kena nawala\n" +
+		"└ Source: Kominfo / TrustPositif / Nawala\n" +
+		"|\n" +
+		"📝 *INPUT*\n" +
+		"└ Ketik domain yg mau dicek\n" +
+		"└ Contoh: `example.com`\n" +
+		"|\n" +
+		"💡 *NOTE*\n" +
+		"└ Gak harus terdaftar di Monitor\n" +
+		"└ Bisa cek domain apapun"
 	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
 	if msg == nil {
 		msg = c.Message()
@@ -615,9 +635,15 @@ func (h *Handler) renderListMenu(c tele.Context, page int) error {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("📋 *Daftar Domain Monitor*\n═══════════════════════════\n\n")
-	sb.WriteString(fmt.Sprintf("📊 *Total:* %d domain dalam %d kategori\n", totalDomains, totalCategories))
-	sb.WriteString("\n💡 _Klik kategori untuk filter, atau Semua Domain untuk liat semua._")
+	sb.WriteString("💎 *D O M A I N   M O N I T O R* 💎\n")
+	sb.WriteString("|\n")
+	sb.WriteString("📊 *STATISTIK*\n")
+	sb.WriteString(fmt.Sprintf("└ Total domain   : %d\n", totalDomains))
+	sb.WriteString(fmt.Sprintf("└ Total kategori : %d\n", totalCategories))
+	sb.WriteString("|\n")
+	sb.WriteString("💡 *NAVIGASI*\n")
+	sb.WriteString("└ Klik kategori → filter per label\n")
+	sb.WriteString("└ Klik SEMUA DOMAIN → liat semua")
 
 	// Build markup
 	m := &tele.ReplyMarkup{}
@@ -803,34 +829,41 @@ func (h *Handler) handleMonitorStatus(c tele.Context) error {
 
 	// Build scanner info header
 	var scanInfo strings.Builder
-	scanInfo.WriteString(fmt.Sprintf("🔍 *Scanner Info*\n"))
-	scanInfo.WriteString(fmt.Sprintf("• Domain di Monitor: *%d*\n", totalDomains))
-	scanInfo.WriteString(fmt.Sprintf("• Interval tick: *%v*\n", interval))
+	scanInfo.WriteString("💎 *S T A T U S   B L O C K E D* 💎\n")
+	scanInfo.WriteString("|\n")
+	scanInfo.WriteString("🔍 *SCANNER INFO*\n")
+	scanInfo.WriteString(fmt.Sprintf("└ Domain di Monitor : %d\n", totalDomains))
+	scanInfo.WriteString(fmt.Sprintf("└ Interval tick     : %v\n", interval))
 	if chunkOf > 1 {
 		fullCycle := time.Duration(chunkOf) * interval
-		fullCycleStr := fmt.Sprintf("%.1f menit", fullCycle.Minutes())
-		scanInfo.WriteString(fmt.Sprintf("• Mode: 🔄 *Rotating Batch* (chunk %d/%d, %d domain/chunk)\n", chunkNum, chunkOf, chunkSize))
-		scanInfo.WriteString(fmt.Sprintf("• Siklus penuh: %s\n", fullCycleStr))
+		scanInfo.WriteString(fmt.Sprintf("└ Mode              : 🔄 Rotating Batch\n"))
+		scanInfo.WriteString(fmt.Sprintf("└ Chunk             : %d/%d (%d domain/chunk)\n", chunkNum, chunkOf, chunkSize))
+		scanInfo.WriteString(fmt.Sprintf("└ Siklus penuh      : %.1f menit\n", fullCycle.Minutes()))
 	} else {
-		scanInfo.WriteString(fmt.Sprintf("• Mode: 🟢 *Full Scan* (semua domain tiap tick)\n"))
+		scanInfo.WriteString("└ Mode              : 🟢 Full Scan\n")
 	}
-	scanInfo.WriteString("\n━━━━━━━━━━━━━━━━━━\n\n")
+	scanInfo.WriteString("|\n")
 
 	if len(blocked) == 0 {
 		return c.Edit(
 			scanInfo.String()+
-				"✅ *Semua aman!*\n\n"+
-				"Saat ini gak ada domain yang terdeteksi kena nawala.\n\n"+
-				"_Bot bakal otomatis update list ini kalau ada domain yang kena blokir._",
+				"✅ *SEMUA AMAN*\n"+
+				"└ Gak ada domain blocked saat ini\n"+
+				"|\n"+
+				"🔄 Bot auto-update list kalau ada yg keblock",
 			backToMonitor(), tele.ModeMarkdown)
 	}
 	var sb strings.Builder
 	sb.WriteString(scanInfo.String())
-	sb.WriteString("🚨 *Domain yang Sedang Terblokir Kominfo*\n═══════════════════════════\n\n")
+	sb.WriteString(fmt.Sprintf("🚨 *DOMAIN TERBLOKIR* (%d)\n", len(blocked)))
 	for domain, since := range blocked {
-		sb.WriteString(fmt.Sprintf("🔴 `%s`\n   📅 Terdeteksi sejak: %s\n\n", domain, since.Format("02/01 15:04")))
+		sb.WriteString(fmt.Sprintf("└ 🔴 `%s`\n", domain))
+		sb.WriteString(fmt.Sprintf("   └ Terdeteksi : %s\n", since.Format("02/01 15:04")))
 	}
-	sb.WriteString("━━━━━━━━━━━━━━━━━━\n💡 _Kalau Auto Rotator-mu udah aktif, domain ini bakal otomatis di-swap dengan domain lain di pool yang sama._")
+	sb.WriteString("|\n")
+	sb.WriteString("💡 *INFO*\n")
+	sb.WriteString("└ Kalau Auto Rotator aktif, domain ini\n")
+	sb.WriteString("   bakal auto-swap ke pool yg sama")
 	return c.Edit(sb.String(), backToMonitor(), tele.ModeMarkdown)
 }
 
@@ -863,43 +896,42 @@ func (h *Handler) handleMonitorInterval(c tele.Context) error {
 		fullCycleStr = fmt.Sprintf("%.1f menit", fullCycle.Minutes())
 	}
 
-	modeText := "🟢 *Mode: Full Scan* — semua domain di-cek tiap tick"
+	modeText := "🟢 Full Scan — semua domain tiap tick"
 	if totalChunks > 1 {
-		modeText = fmt.Sprintf(
-			"🔄 *Mode: Rotating Batch* — auto-split %d chunk (100 domain/chunk)\n"+
-				"_Tick 1 cek 1-100, tick 2 cek 101-%d, dst → siklus penuh %s._",
-			totalChunks, domainCount, fullCycleStr,
-		)
+		modeText = fmt.Sprintf("🔄 Rotating Batch (%d chunk × 100 domain)", totalChunks)
 	}
 
 	prompt := fmt.Sprintf(
-		"⏱ *Set Interval Cek Otomatis*\n\n"+
-			"Interval = jarak antar tick scan ke Kominfo.\n\n"+
-			"━━━━━━━━━━━━━━━━━━\n"+
-			"📊 *Stats Bot Kamu:*\n"+
-			"• Domain di Monitor: *%d*\n"+
-			"• Interval saat ini: *%v*\n"+
-			"• Chunk per tick: max *%d* domain (~%s)\n"+
-			"• Total chunk: *%d*\n"+
-			"• Siklus penuh (semua domain ke-cek): *%s*\n\n"+
-			"%s\n\n"+
-			"━━━━━━━━━━━━━━━━━━\n"+
-			"📐 *Cara kerja Rotating Batch:*\n"+
-			"Bot bagi domain jadi chunk 100. Tiap tick cek 1 chunk aja → 0 risk rate-limit walau punya 1000+ domain.\n\n"+
-			"*Trade-off:* makin banyak domain → makin lama tiap domain ke-recheck (tapi Kominfo lead 4-24 jam dari ISP, masih aman).\n\n"+
-			"*Contoh dengan interval 45 detik:*\n"+
-			"• 100 domain → re-check tiap *45 detik*\n"+
-			"• 200 domain → re-check tiap *1.5 menit*\n"+
-			"• 500 domain → re-check tiap *3.75 menit*\n"+
-			"• 1000 domain → re-check tiap *7.5 menit*\n\n"+
-			"💡 *Rekomendasi:* `45s` (default) — udah optimal untuk semua skala.\n\n"+
-			"━━━━━━━━━━━━━━━━━━\n"+
-			"*Format yang diterima:*\n"+
-			"• `30s` → 30 detik (min 10s)\n"+
-			"• `1m` → 1 menit\n"+
-			"• `2m30s` → 2 menit 30 detik\n\n"+
-			"_💾 Domain yang BLOCKED auto-cached (sticky) — di-skip dari chunk biar slot ke-pakai untuk domain SAFE._\n\n"+
-			"Ketik interval baru:",
+		"💎 *S E T   I N T E R V A L* 💎\n"+
+			"|\n"+
+			"📊 *STATS BOT*\n"+
+			"└ Domain di Monitor : %d\n"+
+			"└ Interval saat ini : %v\n"+
+			"└ Chunk per tick    : max %d (~%s)\n"+
+			"└ Total chunk       : %d\n"+
+			"└ Siklus penuh      : %s\n"+
+			"└ Mode              : %s\n"+
+			"|\n"+
+			"📐 *CARA KERJA*\n"+
+			"└ Bagi domain jadi chunk 100 per tick\n"+
+			"└ Zero rate-limit risk walau 1000+ domain\n"+
+			"└ Domain BLOCKED auto-skip (sticky cache)\n"+
+			"|\n"+
+			"⏱ *RE-CHECK TIME (interval 45s)*\n"+
+			"└ 100 domain  : tiap 45 detik\n"+
+			"└ 200 domain  : tiap 1.5 menit\n"+
+			"└ 500 domain  : tiap 3.75 menit\n"+
+			"└ 1000 domain : tiap 7.5 menit\n"+
+			"|\n"+
+			"📝 *FORMAT INPUT*\n"+
+			"└ `30s` → 30 detik (min 10s)\n"+
+			"└ `1m` → 1 menit\n"+
+			"└ `2m30s` → 2 menit 30 detik\n"+
+			"|\n"+
+			"💡 *REKOMENDASI*\n"+
+			"└ `45s` (default) — optimal semua skala\n"+
+			"|\n"+
+			"🎯 Ketik interval baru 👇",
 		domainCount, current, chunkSize, estChunkStr, totalChunks, fullCycleStr, modeText,
 	)
 	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)

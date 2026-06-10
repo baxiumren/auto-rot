@@ -23,13 +23,19 @@ func (h *Handler) handleMonitorSticky(c tele.Context) error {
 
 	if len(sticky) == 0 {
 		return c.Edit(
-			"📌 *Sticky-Blocked List Kosong*\n\n"+
-				"_Belum ada domain yang ke-mark sticky-blocked._\n\n"+
-				"━━━━━━━━━━━━━━━━━━\n"+
-				"💡 *Apa itu Sticky Block?*\n"+
-				"Saat bot deteksi domain kena nawala (BLOCKED), dia disimpan di list ini. "+
-				"Cek berikutnya bot *skip API call* dan langsung tandai BLOCKED — hemat request & lebih cepat rotasi.\n\n"+
-				"List ini di-clear otomatis pas kamu hapus domainnya, atau manual via tombol 🔓 Unblock.",
+			"💎 *S T I C K Y   B L O C K E D* 💎\n"+
+				"|\n"+
+				"📌 *STATUS*\n"+
+				"└ ✅ List kosong (semua domain SAFE)\n"+
+				"|\n"+
+				"💡 *FUNGSI STICKY*\n"+
+				"└ Cache domain BLOCKED\n"+
+				"└ Bot skip API call (hemat request)\n"+
+				"└ Rotasi swap lebih cepat\n"+
+				"|\n"+
+				"🔄 *AUTO-CLEAR*\n"+
+				"└ Pas lo hapus domain dari Monitor\n"+
+				"└ Manual via tombol 🔓 Unblock",
 			backToMonitor(), tele.ModeMarkdown)
 	}
 
@@ -50,26 +56,36 @@ func (h *Handler) handleMonitorSticky(c tele.Context) error {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].domain < rows[j].domain })
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📌 *Sticky-Blocked List — %d domain*\n", len(rows)))
+	sb.WriteString("💎 *S T I C K Y   B L O C K E D* 💎\n")
+	sb.WriteString("|\n")
+	sb.WriteString("📊 *STATISTIK*\n")
+	sb.WriteString(fmt.Sprintf("└ Total domain : %d\n", len(rows)))
 	if stickyOrphan > 0 {
-		sb.WriteString(fmt.Sprintf("⚠️ *Orphan:* %d (gak ada di Monitor list)\n", stickyOrphan))
+		sb.WriteString(fmt.Sprintf("└ ⚠️ Orphan     : %d (gak ada di Monitor)\n", stickyOrphan))
 	}
-	sb.WriteString("═══════════════════════════\n\n")
-	sb.WriteString("_Domain di bawah ini di-cache sebagai BLOCKED. Bot skip API call untuk mereka._\n\n")
+	sb.WriteString("|\n")
+	sb.WriteString("🔴 *DOMAIN BLOCKED*\n")
 
 	m := &tele.ReplyMarkup{}
 	var btns []tele.Row
-	for i, e := range rows {
+	for _, e := range rows {
 		marker := ""
 		if e.isOrphan {
 			marker = " ⚠️"
 		}
-		sb.WriteString(fmt.Sprintf("%d. 🔴 `%s`%s\n   📅 Sejak: %s\n", i+1, e.domain, marker, e.ts))
+		sb.WriteString(fmt.Sprintf("└ `%s`%s\n", e.domain, marker))
+		sb.WriteString(fmt.Sprintf("   └ Sejak : %s\n", e.ts))
 		btns = append(btns, m.Row(m.Data("🔓 Unblock "+e.domain, cbMonitorStickyDel, e.domain)))
 	}
-	sb.WriteString("\n💡 _Klik *🔓 Unblock* untuk paksa cek ulang dari API._")
+	sb.WriteString("|\n")
+	sb.WriteString("💡 *INFO*\n")
+	sb.WriteString("└ Cache BLOCKED — bot skip API call\n")
+	sb.WriteString("└ Klik 🔓 Unblock untuk paksa cek ulang")
 	if stickyOrphan > 0 {
-		sb.WriteString(fmt.Sprintf("\n\n⚠️ *Orphan* = domain di sticky tapi gak terdaftar di Monitor list. Biasanya dari *Cek Domain Manual*. Bisa dibersihin sekaligus 👇"))
+		sb.WriteString("\n|\n⚠️ *ORPHAN INFO*\n")
+		sb.WriteString("└ Domain di sticky tapi gak ada di Monitor\n")
+		sb.WriteString("└ Biasanya dari Cek Domain Manual\n")
+		sb.WriteString("└ Bisa dibersihin sekaligus 👇")
 		btns = append(btns, m.Row(m.Data(fmt.Sprintf("🧹 Bersihkan %d Orphan", stickyOrphan), cbMonitorStickyClean)))
 	}
 	btns = append(btns, m.Row(m.Data("🔙 Kembali", cbMonitor)))
