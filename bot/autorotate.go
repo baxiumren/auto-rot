@@ -26,10 +26,13 @@ func (h *Handler) handleRotatorAdd(c tele.Context) error {
 		m.Row(m.Data("❌ Batal", cbCancel)),
 	)
 	return c.Edit(
-		"🔄 *Setup Rotator — Pilih Tipe*\n\n"+
-			"Pilih platform mana yang mau di-setup auto-swap-nya:\n\n"+
-			"• *⚙️ CF Redirect* — auto-swap target URL Cloudflare rule\n"+
-			"• *🔗 KLIKCEPAT* — auto-swap `location_url` link klikcepat",
+		"💎 *S E T U P   R O T A T O R* 💎\n"+
+			"|\n"+
+			"🎯 *PILIH PLATFORM*\n"+
+			"└ ⚙️ CF Redirect — swap target URL CF rule\n"+
+			"└ 🔗 KLIKCEPAT — swap location_url klikcepat\n"+
+			"|\n"+
+			"💡 Klik tombol di bawah 👇",
 		m, tele.ModeMarkdown)
 }
 
@@ -38,9 +41,18 @@ func (h *Handler) handleRotatorAddTypeCF(c tele.Context) error {
 	allRules := h.cfrules.GetAll()
 	if len(allRules) == 0 {
 		return c.Edit(
-			"⚠️ *Belum ada CF Rule terdaftar*\n\n"+
-				"Auto Rotator butuh CF Rule untuk di-rotate. Tambah dulu rule kamu di menu *⚙️ CF Redirect → ➕ Add Rule*.\n\n"+
-				"_Kalau bingung, balik ke menu utama dan ikutin urutan 1️⃣ Monitor → 2️⃣ CF Redirect → 3️⃣ Rotator._",
+			"💎 *S E T U P   R O T A T O R* 💎\n"+
+				"|\n"+
+				"⚠️ *BELUM ADA CF RULE*\n"+
+				"└ Auto Rotator butuh CF Rule\n"+
+				"|\n"+
+				"🎯 *ACTION*\n"+
+				"└ Menu: ⚙️ CF Redirect → ➕ Add Rule\n"+
+				"|\n"+
+				"📐 *URUTAN BENAR*\n"+
+				"└ 1️⃣ Monitor (daftarin domain)\n"+
+				"└ 2️⃣ CF Redirect (register rule)\n"+
+				"└ 3️⃣ Auto Rotator (gabungin)",
 			backToRotator(), tele.ModeMarkdown)
 	}
 
@@ -223,8 +235,13 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 
 	if total == 0 {
 		return c.Edit(
-			"📭 *Belum ada Auto Rotator*\n\n"+
-				"Buat dulu lewat *➕ Setup Rotator*.",
+			"💎 *L I S T   R O T A T O R* 💎\n"+
+				"|\n"+
+				"📭 *EMPTY*\n"+
+				"└ Belum ada Auto Rotator\n"+
+				"|\n"+
+				"🎯 *ACTION*\n"+
+				"└ Klik ➕ Setup Rotator buat mulai",
 			backToRotator(), tele.ModeMarkdown)
 	}
 
@@ -238,9 +255,14 @@ func (h *Handler) handleRotatorList(c tele.Context) error {
 	)
 	return c.Edit(
 		fmt.Sprintf(
-			"📋 *Auto Rotator List — Pilih Tipe*\n\n"+
-				"Total: *%d rotator* (⚙️ %d CF + 🔗 %d Klikcepat)\n\n"+
-				"Pilih tipe yang mau ditampilin:",
+			"💎 *L I S T   R O T A T O R* 💎\n"+
+				"|\n"+
+				"📊 *STATISTIK*\n"+
+				"└ Total rotator : %d\n"+
+				"└ ⚙️ CF         : %d\n"+
+				"└ 🔗 Klikcepat  : %d\n"+
+				"|\n"+
+				"🎯 Pilih tipe yang mau ditampilin 👇",
 			total, cfCount, klcTotal),
 		m, tele.ModeMarkdown)
 }
@@ -260,9 +282,13 @@ func (h *Handler) handleRotatorListKlc(c tele.Context) error {
 	)
 	return c.Edit(
 		fmt.Sprintf(
-			"🔗 *Klikcepat Rotator — Pilih Tipe*\n\n"+
-				"• 📄 *BIOLINK BLOCK* — %d rotator\n"+
-				"• 🔗 *SHORTLINK* — %d rotator",
+			"💎 *K L I K C E P A T   R O T A T O R* 💎\n"+
+				"|\n"+
+				"📊 *STATISTIK*\n"+
+				"└ 📄 BIOLINK BLOCK : %d rotator\n"+
+				"└ 🔗 SHORTLINK     : %d rotator\n"+
+				"|\n"+
+				"🎯 Pilih tipe 👇",
 			klcBL, klcSL),
 		m, tele.ModeMarkdown)
 }
@@ -272,17 +298,24 @@ func (h *Handler) handleRotatorListCF(c tele.Context) error {
 	cfRotators := h.rotators.GetAll()
 	if len(cfRotators) == 0 {
 		return c.Edit(
-			"📭 *Belum ada CF Rotator*\n\nBuat dulu lewat *➕ Setup Rotator → ⚙️ CF Redirect*.",
+			"💎 *C F   R O T A T O R S* 💎\n"+
+				"|\n"+
+				"📭 *EMPTY*\n"+
+				"└ Belum ada CF Rotator\n"+
+				"|\n"+
+				"🎯 *ACTION*\n"+
+				"└ Setup Rotator → ⚙️ CF Redirect",
 			h.backToRotatorList(), tele.ModeMarkdown)
 	}
 
 	var sb strings.Builder
-	sb.WriteString("⚙️ *CF Redirect Rotators*\n═══════════════════════════\n")
+	sb.WriteString("💎 *C F   R O T A T O R S* 💎\n")
+	sb.WriteString("|\n")
 
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
 	activeCF := 0
-	for i, rot := range cfRotators {
+	for _, rot := range cfRotators {
 		cfRule, _ := h.cfrules.GetByID(rot.CFRuleID)
 		cfLabel := rot.CFRuleID
 		if cfRule.Label != "" {
@@ -296,16 +329,17 @@ func (h *Handler) handleRotatorListCF(c tele.Context) error {
 		} else {
 			activeCF++
 		}
-		sb.WriteString(fmt.Sprintf("\n%d. *%s* %s\n", i+1, escapeMD(rot.Label), status))
-		sb.WriteString(fmt.Sprintf("   ⚙️ CF: *%s*\n", escapeMD(cfLabel)))
-		sb.WriteString(fmt.Sprintf("   📂 Pool: *%s*\n", escapeMD(rot.PoolLabel)))
+		sb.WriteString(fmt.Sprintf("⚙️ *%s* — %s\n", escapeMD(rot.Label), status))
+		sb.WriteString(fmt.Sprintf("└ CF Rule : `%s`\n", cfLabel))
+		sb.WriteString(fmt.Sprintf("└ Pool    : `%s`\n", rot.PoolLabel))
+		sb.WriteString("|\n")
 		rows = append(rows, m.Row(
 			m.Data(fmt.Sprintf("⚙️ %s", truncate(rot.Label, 18)), cbNoop),
 			m.Data(toggleIcon, cbRotatorToggle, rot.ID),
 			m.Data("🗑 Hapus", cbRotatorDelete, rot.ID),
 		))
 	}
-	sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d rotator (%d aktif)", len(cfRotators), activeCF))
+	sb.WriteString(fmt.Sprintf("📊 *TOTAL*\n└ %d rotator (%d aktif)", len(cfRotators), activeCF))
 
 	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbRotatorList)))
 	m.Inline(rows...)
@@ -317,18 +351,25 @@ func (h *Handler) handleRotatorListKlcShortlink(c tele.Context) error {
 	klcRotators := h.klikcepatRotators.GetAll()
 	if len(klcRotators) == 0 {
 		return c.Edit(
-			"📭 *Belum ada Shortlink Rotator*\n\nBuat dulu lewat *➕ Setup Rotator → 🔗 KLIKCEPAT → 🔗 SHORTLINK*.",
+			"💎 *S H O R T L I N K   R O T A T O R S* 💎\n"+
+				"|\n"+
+				"📭 *EMPTY*\n"+
+				"└ Belum ada Shortlink Rotator\n"+
+				"|\n"+
+				"🎯 *ACTION*\n"+
+				"└ Setup Rotator → 🔗 KLIKCEPAT → 🔗 SHORTLINK",
 			h.backToKlcList(), tele.ModeMarkdown)
 	}
 
 	userMap := h.creds.GetKlikcepatDomainMap()
 	var sb strings.Builder
-	sb.WriteString("🔗 *Klikcepat Shortlink Rotators*\n═══════════════════════════\n")
+	sb.WriteString("💎 *S H O R T L I N K   R O T A T O R S* 💎\n")
+	sb.WriteString("|\n")
 
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
 	activeKLC := 0
-	for i, rot := range klcRotators {
+	for _, rot := range klcRotators {
 		status := "▶️ AKTIF"
 		toggleIcon := "⏸ Pause"
 		if !rot.Active {
@@ -343,16 +384,17 @@ func (h *Handler) handleRotatorListKlcShortlink(c tele.Context) error {
 				displayURL = klikcepat.BuildShortlinkURL(*link, userMap, nil)
 			}
 		}
-		sb.WriteString(fmt.Sprintf("\n%d. *%s* %s\n", i+1, escapeMD(rot.Label), status))
-		sb.WriteString(fmt.Sprintf("   🔗 Link: `%s`\n", escapeMD(displayURL)))
-		sb.WriteString(fmt.Sprintf("   📂 Pool: *%s*\n", escapeMD(rot.PoolLabel)))
+		sb.WriteString(fmt.Sprintf("🔗 *%s* — %s\n", escapeMD(rot.Label), status))
+		sb.WriteString(fmt.Sprintf("└ Link : `%s`\n", displayURL))
+		sb.WriteString(fmt.Sprintf("└ Pool : `%s`\n", rot.PoolLabel))
+		sb.WriteString("|\n")
 		rows = append(rows, m.Row(
 			m.Data(fmt.Sprintf("🔗 %s", truncate(rot.Label, 18)), cbNoop),
 			m.Data(toggleIcon, cbKlikcepatRotToggle, rot.ID),
 			m.Data("🗑 Hapus", cbKlikcepatRotDelete, rot.ID),
 		))
 	}
-	sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d rotator (%d aktif)", len(klcRotators), activeKLC))
+	sb.WriteString(fmt.Sprintf("📊 *TOTAL*\n└ %d rotator (%d aktif)", len(klcRotators), activeKLC))
 
 	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbRotatorListKlc)))
 	m.Inline(rows...)
@@ -364,7 +406,13 @@ func (h *Handler) handleRotatorListKlcBiolink(c tele.Context) error {
 	klcBlockRotators := h.klikcepatBlockRotators.GetAll()
 	if len(klcBlockRotators) == 0 {
 		return c.Edit(
-			"📭 *Belum ada Biolink Block Rotator*\n\nBuat dulu lewat *➕ Setup Rotator → 🔗 KLIKCEPAT → 📄 BIOLINK*.",
+			"💎 *B I O L I N K   B L O C K   R O T A T O R S* 💎\n"+
+				"|\n"+
+				"📭 *EMPTY*\n"+
+				"└ Belum ada Block Rotator\n"+
+				"|\n"+
+				"🎯 *ACTION*\n"+
+				"└ Setup Rotator → 🔗 KLIKCEPAT → 📄 BIOLINK",
 			h.backToKlcList(), tele.ModeMarkdown)
 	}
 
@@ -377,12 +425,13 @@ func (h *Handler) handleRotatorListKlcBiolink(c tele.Context) error {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("📄 *Klikcepat Biolink Block Rotators*\n═══════════════════════════\n")
+	sb.WriteString("💎 *B I O L I N K   B L O C K   R O T A T O R S* 💎\n")
+	sb.WriteString("|\n")
 
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
 	activeBlk := 0
-	for i, rot := range klcBlockRotators {
+	for _, rot := range klcBlockRotators {
 		status := "▶️ AKTIF"
 		toggleIcon := "⏸ Pause"
 		if !rot.Active {
@@ -396,17 +445,18 @@ func (h *Handler) handleRotatorListKlcBiolink(c tele.Context) error {
 			blockName = "(no name)"
 		}
 		biolinkURL := buildKlcURL(rot.BiolinkDomain, rot.BiolinkSlug)
-		sb.WriteString(fmt.Sprintf("\n%d. *%s* %s\n", i+1, escapeMD(rot.Label), status))
-		sb.WriteString(fmt.Sprintf("   📄 Biolink: `%s`\n", escapeMD(biolinkURL)))
-		sb.WriteString(fmt.Sprintf("   🔘 Block: *%s*\n", escapeMD(blockName)))
-		sb.WriteString(fmt.Sprintf("   📂 Pool: *%s*\n", escapeMD(rot.PoolLabel)))
+		sb.WriteString(fmt.Sprintf("📄 *%s* — %s\n", escapeMD(rot.Label), status))
+		sb.WriteString(fmt.Sprintf("└ Biolink : `%s`\n", biolinkURL))
+		sb.WriteString(fmt.Sprintf("└ Block   : *%s*\n", escapeMD(blockName)))
+		sb.WriteString(fmt.Sprintf("└ Pool    : `%s`\n", rot.PoolLabel))
+		sb.WriteString("|\n")
 		rows = append(rows, m.Row(
 			m.Data(fmt.Sprintf("📄 %s", truncate(rot.Label, 18)), cbNoop),
 			m.Data(toggleIcon, cbKlcBlockRotToggle, rot.ID),
 			m.Data("🗑 Hapus", cbKlcBlockRotDelete, rot.ID),
 		))
 	}
-	sb.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d rotator (%d aktif)", len(klcBlockRotators), activeBlk))
+	sb.WriteString(fmt.Sprintf("📊 *TOTAL*\n└ %d rotator (%d aktif)", len(klcBlockRotators), activeBlk))
 
 	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbRotatorListKlc)))
 	m.Inline(rows...)

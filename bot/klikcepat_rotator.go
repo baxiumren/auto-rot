@@ -35,9 +35,13 @@ func (h *Handler) handleRotatorAddTypeKlikcepat(c tele.Context) error {
 		m.Row(m.Data("❌ Batal", cbRotator)),
 	)
 	return c.Edit(
-		"🔄 *Setup Klikcepat Rotator — Pilih Tipe*\n\n"+
-			"• 📄 *BIOLINK* — rotate destination button di dalem biolink (LOGIN, DAFTAR, dll)\n"+
-			"• 🔗 *SHORTLINK* — rotate destination dari shortlink (klikcepat.com/slug → external)",
+		"💎 *K L I K C E P A T   R O T A T O R* 💎\n"+
+			"|\n"+
+			"🎯 *PILIH TIPE*\n"+
+			"└ 📄 BIOLINK — rotate button di biolink page\n"+
+			"   └ Contoh: LOGIN, DAFTAR, RTP, dll\n"+
+			"└ 🔗 SHORTLINK — rotate destination shortlink\n"+
+			"   └ Contoh: klikcepat.com/slug → external",
 		m, tele.ModeMarkdown)
 }
 

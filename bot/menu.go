@@ -254,17 +254,29 @@ const (
 		"└ Gak perlu Zone ID / Rule ID\n" +
 		"└ Cukup nama domain — bot fetch sendiri"
 
-	textRotator = "🔄 *Auto Rotator — Konfigurasi Swap*\n\n" +
-		"Section paling penting! Di sini kamu *gabungkan*:\n" +
-		"• *CF Rule* — yang URL-nya mau di-rotate\n" +
-		"• *Pool Label* — kelompok domain cadangan dari Monitor\n\n" +
-		"*Cara kerja swap otomatis:*\n" +
-		"1️⃣ Monitor Scanner pantau SEMUA domain di list (24/7)\n" +
-		"2️⃣ Begitu ada domain detected BLOCKED → cross-check ke CF Rule\n" +
-		"3️⃣ Kalau current URL CF Rule = domain yg blocked → cek Rotator config\n" +
-		"4️⃣ Ambil domain berikutnya dari *Pool Label* (yang kamu set di sini) → swap\n\n" +
-		"⚠️ *Tanpa Rotator config, auto-swap GAK jalan* — bot cuma kirim notif blocked.\n\n" +
-		"_Syarat: udah ada CF Rule + minimal 2 domain di pool Monitor._"
+	textRotator = "💎 *A U T O   R O T A T O R* 💎\n" +
+		"|\n" +
+		"🔄 *FUNGSI*\n" +
+		"└ Section paling penting!\n" +
+		"└ Gabungkan: CF Rule / Klikcepat link + Pool\n" +
+		"└ Bot auto-swap saat domain keblock\n" +
+		"|\n" +
+		"⚙️ *CARA KERJA SWAP OTOMATIS*\n" +
+		"└ 1️⃣ Monitor pantau semua domain 24/7\n" +
+		"└ 2️⃣ Domain BLOCKED → cross-check rule/link\n" +
+		"└ 3️⃣ Match → cek Rotator config\n" +
+		"└ 4️⃣ Ambil domain next dari Pool → swap\n" +
+		"|\n" +
+		"📦 *YG BISA DI-SETUP*\n" +
+		"└ ⚙️ CF Redirect rotator\n" +
+		"└ 🔗 Klikcepat shortlink rotator\n" +
+		"└ 📄 Klikcepat biolink block rotator\n" +
+		"└ 📋 List + Bulk Setup multi-rule\n" +
+		"|\n" +
+		"⚠️ *SYARAT*\n" +
+		"└ Tanpa Rotator config → auto-swap MATI\n" +
+		"└ Min 2 domain di pool Monitor\n" +
+		"└ Udah ada CF Rule / Klikcepat link"
 
 	textKlikcepat = "🔗 *KLIKCEPAT — Bio Link & Short URL*\n\n" +
 		"Manage link & project di klikcepat.com langsung dari bot.\n\n" +

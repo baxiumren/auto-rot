@@ -32,10 +32,15 @@ func (h *Handler) handleRotatorBulk(c tele.Context) error {
 		m.Row(m.Data("❌ Batal", cbCancel)),
 	)
 	return c.Edit(
-		"📦 *Bulk Setup Rotator — Pilih Tipe*\n\n"+
-			"Pilih platform mana yang mau di-bulk-setup auto-swap-nya:\n\n"+
-			"• *⚙️ CF Redirect* — bulk-assign CF rules ke 1 pool\n"+
-			"• *🔗 KLIKCEPAT* — bulk-assign klikcepat links ke 1 pool",
+		"💎 *B U L K   S E T U P* 💎\n"+
+			"|\n"+
+			"📦 *FUNGSI*\n"+
+			"└ Bulk-assign banyak rule/link ke 1 pool\n"+
+			"└ Hemat waktu — multi-select sekali save\n"+
+			"|\n"+
+			"🎯 *PILIH PLATFORM*\n"+
+			"└ ⚙️ CF Redirect — banyak CF rule\n"+
+			"└ 🔗 KLIKCEPAT — banyak klikcepat link",
 		m, tele.ModeMarkdown)
 }
 

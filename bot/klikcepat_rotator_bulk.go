@@ -48,9 +48,15 @@ func (h *Handler) handleRotatorBulkTypeKlikcepat(c tele.Context) error {
 		m.Row(m.Data("❌ Batal", cbRotator)),
 	)
 	return c.Edit(
-		"📦 *Bulk Setup Klikcepat — Pilih Tipe*\n\n"+
-			"• *📄 BIOLINK* — pick 1 biolink → multi-select blocks → 1 pool\n"+
-			"• *🔗 SHORTLINK* — multi-select shortlinks → 1 pool",
+		"💎 *B U L K   K L I K C E P A T* 💎\n"+
+			"|\n"+
+			"🎯 *PILIH TIPE*\n"+
+			"└ 📄 BIOLINK\n"+
+			"   └ Pick 1 biolink → multi-select blocks\n"+
+			"   └ Assign ke 1 pool\n"+
+			"└ 🔗 SHORTLINK\n"+
+			"   └ Multi-select shortlinks\n"+
+			"   └ Assign ke 1 pool",
 		m, tele.ModeMarkdown)
 }
 
