@@ -41,29 +41,33 @@ func (h *Handler) handleGroupStatus(c tele.Context) error {
 	if chunkOf > 1 {
 		mode = "🔄 Rotating Batch"
 		fullCycle := time.Duration(chunkOf) * interval
-		cycleInfo = fmt.Sprintf("\n• Chunk: *%d/%d* (max %d/chunk)\n• Siklus penuh: *%.1f menit*",
+		cycleInfo = fmt.Sprintf("\n└ Chunk            : %d/%d (max %d/chunk)\n└ Siklus penuh     : %.1f menit",
 			chunkNum, chunkOf, chunkSize, fullCycle.Minutes())
 	}
 
 	stickyCount := len(checker.Default().GetStickyList())
 
 	text := fmt.Sprintf(
-		"🩺 *STATUS BOT*\n"+
-			"═══════════════════════════\n\n"+
-			"📡 *Monitor*\n"+
-			"• Domain terdaftar: *%d*\n"+
-			"• Sedang blocked: *%d*\n"+
-			"• Sticky cache: *%d*\n"+
-			"• Interval tick: *%v*\n"+
-			"• Mode scan: %s%s\n\n"+
-			"⚙️ *Cloudflare*\n"+
-			"• CF Rule: *%d*\n\n"+
-			"🔄 *Rotator*\n"+
-			"• Total config: *%d*\n"+
-			"• Aktif: *%d*\n\n"+
-			"⏱ *Bot Uptime*\n"+
-			"• %s\n\n"+
-			"_Update terakhir: %s_",
+		"💎 *S T A T U S   B O T* 💎\n"+
+			"|\n"+
+			"📡 *MONITOR*\n"+
+			"└ Domain terdaftar : %d\n"+
+			"└ Sedang blocked   : %d\n"+
+			"└ Sticky cache     : %d\n"+
+			"└ Interval tick    : %v\n"+
+			"└ Mode scan        : %s%s\n"+
+			"|\n"+
+			"⚙️ *CLOUDFLARE*\n"+
+			"└ CF Rule : %d\n"+
+			"|\n"+
+			"🔄 *ROTATOR*\n"+
+			"└ Total config : %d\n"+
+			"└ ▶️ Aktif      : %d\n"+
+			"|\n"+
+			"⏱ *BOT UPTIME*\n"+
+			"└ %s\n"+
+			"|\n"+
+			"🕐 Update : %s",
 		totalDomains, len(blocked), stickyCount, interval, mode, cycleInfo,
 		len(cfRules),
 		len(rotators), activeRotators,
@@ -94,34 +98,38 @@ func (h *Handler) handleGroupListDomain(c tele.Context) error {
 		totalDom += len(all[lbl])
 	}
 
-	// Build full list dulu (detail per domain)
+	// Build full list dulu (detail per domain — `backtick` biar copy-friendly)
 	var full strings.Builder
-	full.WriteString("📋 *List Domain*\n═══════════════════════════\n\n")
+	full.WriteString("💎 *L I S T   D O M A I N* 💎\n")
+	full.WriteString("|\n")
 	for _, lbl := range labels {
 		domains := append([]string{}, all[lbl]...)
 		sort.Strings(domains)
-		full.WriteString(fmt.Sprintf("📂 *%s* — `%d domain`\n", escapeMD(lbl), len(domains)))
+		full.WriteString(fmt.Sprintf("📂 *%s* — %d domain\n", escapeMD(lbl), len(domains)))
 		for _, d := range domains {
-			full.WriteString(fmt.Sprintf("  • `%s`\n", escapeMD(d)))
+			full.WriteString(fmt.Sprintf("└ `%s`\n", d))
 		}
-		full.WriteString("\n")
+		full.WriteString("|\n")
 	}
-	full.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━\n*Total:* %d domain dalam %d label",
+	full.WriteString(fmt.Sprintf("📊 *TOTAL*\n└ %d domain dalam %d label",
 		totalDom, len(labels)))
 
 	text := full.String()
 
 	// Telegram limit 4096 chars per message. Kalau over → fallback ke ringkasan
-	// per-label dengan instruksi buka DM untuk detail.
-	const tgMaxLen = 3900 // headroom untuk markdown safety
+	const tgMaxLen = 3900
 	if len(text) > tgMaxLen {
 		var summary strings.Builder
-		summary.WriteString("📋 *List Domain (Ringkasan)*\n═══════════════════════════\n\n")
-		summary.WriteString(fmt.Sprintf("⚠️ _Total %d domain — terlalu panjang untuk group._\n_Detail lengkap → buka DM bot._\n\n", totalDom))
+		summary.WriteString("💎 *L I S T   D O M A I N* 💎  `(ringkasan)`\n")
+		summary.WriteString("|\n")
+		summary.WriteString(fmt.Sprintf("⚠️ Total %d domain — terlalu panjang.\n   Detail lengkap → buka DM bot.\n", totalDom))
+		summary.WriteString("|\n")
+		summary.WriteString("📊 *PER KATEGORI*\n")
 		for _, lbl := range labels {
-			summary.WriteString(fmt.Sprintf("📂 *%s* — `%d domain`\n", escapeMD(lbl), len(all[lbl])))
+			summary.WriteString(fmt.Sprintf("└ 📂 %s : %d domain\n", escapeMD(lbl), len(all[lbl])))
 		}
-		summary.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d domain dalam %d label",
+		summary.WriteString("|\n")
+		summary.WriteString(fmt.Sprintf("📊 *TOTAL*\n└ %d domain dalam %d label",
 			totalDom, len(labels)))
 		text = summary.String()
 	}
@@ -174,7 +182,8 @@ func (h *Handler) handleGroupListCF(c tele.Context) error {
 	}
 
 	var full strings.Builder
-	full.WriteString("🔄 *List CF Redirect Rules*\n═══════════════════════════\n\n")
+	full.WriteString("💎 *L I S T   C F   R U L E S* 💎\n")
+	full.WriteString("|\n")
 	for _, r := range rules {
 		dom := r.Domain
 		if dom == "" {
@@ -184,26 +193,29 @@ func (h *Handler) handleGroupListCF(c tele.Context) error {
 		if r.Type == "page_rules" {
 			typeShort = "v1"
 		}
-		rotInfo := "_(no auto-swap)_"
-		if pool, ok := rotByRule[r.ID]; ok {
-			rotInfo = fmt.Sprintf("🔄 pool: `%s`", escapeMD(pool))
-		}
 		full.WriteString(fmt.Sprintf("⚙️ *%s* (%s)\n", escapeMD(r.Label), typeShort))
-		full.WriteString(fmt.Sprintf("   🌐 Domain: `%s`\n", escapeMD(dom)))
+		full.WriteString(fmt.Sprintf("└ 🌐 Domain : `%s`\n", dom))
 		if curURL := currentURLs[r.ID]; curURL != "" {
-			full.WriteString(fmt.Sprintf("   🎯 Target: `%s`\n", escapeMD(curURL)))
+			full.WriteString(fmt.Sprintf("└ 🎯 Target : `%s`\n", curURL))
 		}
-		full.WriteString(fmt.Sprintf("   %s\n\n", rotInfo))
+		if pool, ok := rotByRule[r.ID]; ok {
+			full.WriteString(fmt.Sprintf("└ 🔄 Pool   : `%s`\n", escapeMD(pool)))
+		} else {
+			full.WriteString("└ ⚪ Pool   : (no auto-swap)\n")
+		}
+		full.WriteString("|\n")
 	}
-	full.WriteString(fmt.Sprintf("━━━━━━━━━━━━━━━━━━\n*Total:* %d CF Rule", len(rules)))
+	full.WriteString(fmt.Sprintf("📊 *TOTAL*\n└ %d CF Rule", len(rules)))
 
 	text := full.String()
 	const tgMaxLen = 3900
 	if len(text) > tgMaxLen {
-		// Fallback ke ringkasan tanpa current URL
 		var summary strings.Builder
-		summary.WriteString("🔄 *List CF Redirect Rules (Ringkasan)*\n═══════════════════════════\n\n")
-		summary.WriteString("⚠️ _Detail target URL terlalu panjang — buka DM untuk full info._\n\n")
+		summary.WriteString("💎 *L I S T   C F   R U L E S* 💎  `(ringkasan)`\n")
+		summary.WriteString("|\n")
+		summary.WriteString("⚠️ Detail target URL kepanjangan.\n   Buka DM bot untuk full info.\n")
+		summary.WriteString("|\n")
+		summary.WriteString("⚙️ *RULES*\n")
 		for _, r := range rules {
 			dom := r.Domain
 			if dom == "" {
@@ -215,12 +227,13 @@ func (h *Handler) handleGroupListCF(c tele.Context) error {
 			}
 			rotInfo := ""
 			if pool, ok := rotByRule[r.ID]; ok {
-				rotInfo = fmt.Sprintf(" → 🔄 `%s`", escapeMD(pool))
+				rotInfo = fmt.Sprintf(" → 🔄 %s", escapeMD(pool))
 			}
-			summary.WriteString(fmt.Sprintf("⚙️ *%s* (%s) — `%s`%s\n",
-				escapeMD(r.Label), typeShort, escapeMD(dom), rotInfo))
+			summary.WriteString(fmt.Sprintf("└ *%s* (%s) — `%s`%s\n",
+				escapeMD(r.Label), typeShort, dom, rotInfo))
 		}
-		summary.WriteString(fmt.Sprintf("\n━━━━━━━━━━━━━━━━━━\n*Total:* %d CF Rule", len(rules)))
+		summary.WriteString("|\n")
+		summary.WriteString(fmt.Sprintf("📊 *TOTAL*\n└ %d CF Rule", len(rules)))
 		text = summary.String()
 	}
 
