@@ -25,18 +25,30 @@ func (h *Handler) handleCFAdd(c tele.Context) error {
 	h.cancelPriorPrompt(c, StepCFAddLabel)
 	if !h.cf.HasCredentials() {
 		return c.Edit(
-			"⚠️ *CF Credentials belum di-set*\n\nSet email & API key dulu lewat menu *🔧 Settings* sebelum menambah rule.",
+			"💎 *C F   C R E D E N T I A L S* 💎\n"+
+				"|\n"+
+				"⚠️ *STATUS*\n"+
+				"└ Belum di-set\n"+
+				"|\n"+
+				"🎯 *ACTION*\n"+
+				"└ Set email & API key dulu\n"+
+				"└ Menu: 🔧 Settings → ⚙️ Cloudflare",
 			backToCF(), tele.ModeMarkdown,
 		)
 	}
 
-	prompt := "⚙️ *Tambah CF Rule — Langkah 1 dari 2*\n\n" +
-		"📛 *Ketik label/nama* untuk rule ini.\n" +
-		"_Label bebas, buat kamu identifikasi rule nanti di list._\n\n" +
-		"*Contoh:*\n" +
-		"• `MAIN-REDIRECT`\n" +
-		"• `PROMO-KWAI`\n" +
-		"• `TOKO-LANDING`"
+	prompt := "💎 *T A M B A H   C F   R U L E* 💎\n" +
+		"|\n" +
+		"📛 *STEP 1/2 — LABEL/NAMA*\n" +
+		"└ Ketik label buat identifikasi rule\n" +
+		"|\n" +
+		"📝 *CONTOH*\n" +
+		"└ `MAIN-REDIRECT`\n" +
+		"└ `PROMO-KWAI`\n" +
+		"└ `TOKO-LANDING`\n" +
+		"|\n" +
+		"🎯 *NEXT*\n" +
+		"└ Step 2: input nama domain CF"
 	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
 	if msg == nil {
 		msg = c.Message()
@@ -61,13 +73,20 @@ func (h *Handler) wizardCFAddLabel(c tele.Context, sess *Session) error {
 	h.sessions.Set(c.Sender().ID, sess)
 
 	newMsg, sendErr := h.bot.Send(c.Chat(),
-		userTag(c.Sender())+" ⚙️ *Tambah CF Rule — Langkah 2 dari 2*\n\n"+
-			"🌐 *Ketik nama domain* yang ada di akun Cloudflare kamu:\n\n"+
-			"*Contoh:*\n"+
-			"• `example.com`\n"+
-			"• `mysite.net`\n"+
-			"• `tokoku.id`\n\n"+
-			"💡 _Gak perlu Zone ID atau Rule ID — bot bakal *auto-fetch* dari Cloudflare API. Pastikan domain udah didaftarkan di Cloudflare dan punya redirect rule aktif._",
+		userTag(c.Sender())+" 💎 *T A M B A H   C F   R U L E* 💎\n"+
+			"|\n"+
+			"🌐 *STEP 2/2 — INPUT DOMAIN*\n"+
+			"└ Ketik nama domain yg ada di Cloudflare\n"+
+			"|\n"+
+			"📝 *CONTOH*\n"+
+			"└ `example.com`\n"+
+			"└ `mysite.net`\n"+
+			"└ `tokoku.id`\n"+
+			"|\n"+
+			"💡 *AUTO-FETCH*\n"+
+			"└ Gak perlu Zone ID / Rule ID\n"+
+			"└ Bot fetch otomatis dari CF API\n"+
+			"└ Pastikan domain udah ada redirect rule",
 		&tele.SendOptions{
 			ReplyTo:     c.Message(),
 			ParseMode:   tele.ModeMarkdown,
@@ -467,44 +486,46 @@ func (h *Handler) handleCFList(c tele.Context) error {
 
 	// Build pesan
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📋 *CF Rules — %d rule*\n", len(rules)))
-	sb.WriteString("═══════════════════════════\n\n")
+	sb.WriteString("💎 *C F   R U L E S* 💎\n")
+	sb.WriteString("|\n")
+	sb.WriteString(fmt.Sprintf("📊 *TOTAL : %d rule*\n", len(rules)))
+	sb.WriteString("|\n")
 
 	for i, r := range rules {
-		typeLabel := "Redirect Rules (v2)"
+		typeShort := "v2"
 		if r.Type == "page_rules" {
-			typeLabel = "Page Rules (v1)"
+			typeShort = "v1"
 		}
 
 		domainDisplay := r.Domain
 		if domainDisplay == "" {
-			domainDisplay = "_(belum ada — tambah ulang via Add Rule)_"
+			domainDisplay = "(belum ada)"
 		}
 
-		// Tujuan URL
+		// Tujuan URL — keep backtick code for copy
 		var targetDisplay string
 		res := results[i]
 		if res.err != nil {
 			if !h.cf.HasCredentials() {
-				targetDisplay = "_(set CF Credentials dulu di Settings)_"
+				targetDisplay = "(set CF Credentials di Settings)"
 			} else {
-				targetDisplay = fmt.Sprintf("⚠️ _gagal fetch: %s_", escapeMD(truncate(res.err.Error(), 60)))
+				targetDisplay = fmt.Sprintf("⚠️ gagal fetch: %s", truncate(res.err.Error(), 60))
 			}
 		} else if res.url == "" {
-			targetDisplay = "_(kosong)_"
+			targetDisplay = "(kosong)"
 		} else {
-			targetDisplay = fmt.Sprintf("`%s`", escapeMD(res.url))
+			targetDisplay = fmt.Sprintf("`%s`", res.url)
 		}
 
-		sb.WriteString(fmt.Sprintf("*%d. %s*\n", i+1, escapeMD(r.Label)))
-		sb.WriteString(fmt.Sprintf("├ 🌐 *Domain:* `%s`\n", escapeMD(domainDisplay)))
-		sb.WriteString(fmt.Sprintf("├ 🎯 *Tujuan:* %s\n", targetDisplay))
-		sb.WriteString(fmt.Sprintf("├ 📌 *Tipe:* %s\n", typeLabel))
-		sb.WriteString(fmt.Sprintf("├ 🔑 *Zone ID:* `%s`\n", r.ZoneID))
+		sb.WriteString(fmt.Sprintf("⚙️ *%s* (%s)\n", escapeMD(r.Label), typeShort))
+		sb.WriteString(fmt.Sprintf("└ 🌐 Domain   : `%s`\n", domainDisplay))
+		sb.WriteString(fmt.Sprintf("└ 🎯 Tujuan   : %s\n", targetDisplay))
+		sb.WriteString(fmt.Sprintf("└ 🔑 Zone ID  : `%s`\n", r.ZoneID))
 		if r.RulesetID != "" {
-			sb.WriteString(fmt.Sprintf("├ 🆔 *Ruleset:* `%s`\n", r.RulesetID))
+			sb.WriteString(fmt.Sprintf("└ 🆔 Ruleset  : `%s`\n", r.RulesetID))
 		}
-		sb.WriteString(fmt.Sprintf("└ 🆔 *Rule ID:* `%s`\n\n", r.RuleID))
+		sb.WriteString(fmt.Sprintf("└ 🆔 Rule ID  : `%s`\n", r.RuleID))
+		sb.WriteString("|\n")
 	}
 
 	text := sb.String()
@@ -547,9 +568,14 @@ func (h *Handler) handleCFChangeMenu(c tele.Context) error {
 	m.Inline(rows...)
 
 	return c.Edit(
-		"✏️ *Ganti URL Tujuan (Manual)*\n\n"+
-			"Pilih rule yang URL tujuannya mau diganti:\n\n"+
-			"_(Untuk ganti banyak rule sekaligus → balik & pilih *📦 Bulk Change*.)_",
+		"💎 *G A N T I   U R L* 💎\n"+
+			"|\n"+
+			"✏️ *MODE MANUAL*\n"+
+			"└ Pilih rule yg URL-nya mau diganti\n"+
+			"|\n"+
+			"📦 *MASS UPDATE*\n"+
+			"└ Balik → pilih 📦 Bulk Change\n"+
+			"└ Ganti banyak rule sekaligus",
 		m, tele.ModeMarkdown)
 }
 
@@ -572,20 +598,23 @@ func (h *Handler) handleCFChangeSelect(c tele.Context) error {
 
 	domainInfo := ""
 	if rule.Domain != "" {
-		domainInfo = fmt.Sprintf("🌐 *Domain:* `%s`\n", rule.Domain)
+		domainInfo = fmt.Sprintf("└ 🌐 Domain : `%s`\n", rule.Domain)
 	}
 	prompt := fmt.Sprintf(
-		"✏️ *Ganti URL Tujuan*\n\n"+
-			"📛 *Rule:* %s\n"+
+		"💎 *G A N T I   U R L* 💎\n"+
+			"|\n"+
+			"📛 *RULE*\n"+
+			"└ Label : *%s*\n"+
 			"%s"+
-			"🎯 *URL saat ini:*\n`%s`\n\n"+
-			"━━━━━━━━━━━━━━━━━━\n"+
-			"Ketik *URL baru* (lengkap dengan `https://`):\n\n"+
-			"*Contoh:*\n"+
-			"• `https://landing-baru.com`\n"+
-			"• `https://promo.tokoku.id/special`\n\n"+
-			"_Bot bakal langsung apply ke Cloudflare._",
-		rule.Label, domainInfo, currentURL,
+			"└ 🎯 URL saat ini :\n   `%s`\n"+
+			"|\n"+
+			"📝 *INPUT URL BARU*\n"+
+			"└ Ketik URL lengkap (with `https://`)\n"+
+			"└ Contoh: `https://landing-baru.com`\n"+
+			"└ Contoh: `https://promo.tokoku.id/special`\n"+
+			"|\n"+
+			"⚡ Bot langsung apply ke Cloudflare",
+		escapeMD(rule.Label), domainInfo, currentURL,
 	)
 	msg, _ := h.bot.Edit(c.Message(), prompt, cancelMenu(), tele.ModeMarkdown)
 	if msg == nil {

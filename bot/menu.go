@@ -235,12 +235,24 @@ const (
 		"|\n" +
 		"🎯 Pilih action di bawah 👇"
 
-	textCF = "⚙️ *CF Redirect — Cloudflare Redirect Rules*\n\n" +
-		"Section ini buat *menghubungkan bot dengan redirect rule Cloudflare* kamu.\n\n" +
-		"*Apa itu redirect rule?*\n" +
-		"Rule di Cloudflare yang ngarahin pengunjung domain A → URL tujuan B (misal `iklan.com` → `https://landing-kamu.com`).\n\n" +
-		"Daftarin rule kamu di sini, lalu bot bisa *ganti URL tujuannya* (otomatis lewat Auto Rotator, atau manual via Ganti URL).\n\n" +
-		"*Tips:* gak perlu hapal Zone ID / Rule ID — cukup ketik nama domain, bot fetch sendiri dari Cloudflare."
+	textCF = "💎 *C F   R E D I R E C T* 💎\n" +
+		"|\n" +
+		"⚙️ *FUNGSI*\n" +
+		"└ Connect bot ke redirect rule Cloudflare\n" +
+		"└ Auto-swap URL tujuan saat domain blocked\n" +
+		"|\n" +
+		"📐 *APA ITU REDIRECT RULE?*\n" +
+		"└ Rule CF yg ngarahin domain A → URL B\n" +
+		"└ Contoh: `iklan.com` → `landing.com`\n" +
+		"|\n" +
+		"🎯 *YG BISA DILAKUIN*\n" +
+		"└ ➕ Daftarin rule via nama domain\n" +
+		"└ ✏️ Ganti URL tujuan (manual / Auto Rotator)\n" +
+		"└ 📋 List + bulk operations\n" +
+		"|\n" +
+		"💡 *TIPS*\n" +
+		"└ Gak perlu Zone ID / Rule ID\n" +
+		"└ Cukup nama domain — bot fetch sendiri"
 
 	textRotator = "🔄 *Auto Rotator — Konfigurasi Swap*\n\n" +
 		"Section paling penting! Di sini kamu *gabungkan*:\n" +
