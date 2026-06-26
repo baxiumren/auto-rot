@@ -18,6 +18,75 @@ v1.0 → v1.1 → v1.2 → v1.3 → ... → v1.9 → v2.0 → v2.1 → ...
 
 ---
 
+## 🚀 v1.8 — "JASEBKING UI + LinkFB + Info Tools" (2026-06-10)
+
+**Massive UI revamp + multi-shortener foundation + utility tools.**
+
+### 🎨 UI Refactor — JASEBKING Style (semua section)
+Format konsisten di seluruh bot: title diamond (`💎 X X X 💎`), section header ALL CAPS dengan emoji, sub-items pakai `└` arrow, separator `|` antar section, semua URL/slug/value dalam backtick (copy-friendly).
+
+Refactored:
+- 🏠 Welcome message (DM admin + group)
+- 🩺 Health Dashboard
+- 📡 Monitor (entry + list + status + sticky + add/remove/check)
+- ⚙️ CF Redirect (entry + add + list + change URL)
+- 🔄 Auto Rotator (entry + setup + list per-type)
+- 🔗 KLIKCEPAT (entry + add 5-step + edit + delete + projects)
+- 🔧 Settings (CF + Klikcepat + Group Commands)
+- 📋 Group views (Status Bot + List Domain + List CF)
+
+### 🔗 NEW: LinkFB Integration
+Pixly engine kedua — paralel sama Klikcepat. Scope: shortlink + projects (no biolink edit per design).
+
+Backend:
+- New `linkfb` instance dari klikcepat.Client (generic Pixly engine)
+- Credentials: LinkfbBaseURL, LinkfbAPIKey, LinkfbDomainMap
+- Default base URL: `https://linkfb.io`
+
+UI:
+- 🏠 Main menu → 🔗 LINKFB sub-section
+- 🔧 Settings → 🔗 LinkFB (Set URL/Key/Test/Clear)
+- LinkFB sub-menu: Add (4-step) / List / Edit / Delete / Projects / Dashboard URL
+- Projects full CRUD (Add wizard 2-step / List / Edit / Delete with confirm)
+- Pagination 10/page di Edit + Delete pickers
+
+### 🛠 NEW: Info Tools (Telegram utility)
+5 commands via tombol + slash:
+
+Tombol (DM bot → 🏠 MENU → 🛠 Info Tools):
+- 🆔 Get User ID dari @username
+- 📨 Get Chat ID dari t.me link (support /c/ private)
+- 👤 User Info (name, bio, dll)
+- 💬 Chat Info (title, type, member count, description)
+- 📚 Help
+
+Slash commands (works DM admin + group):
+- `/id @username`
+- `/cekid <link>`
+- `/info @username`
+- `/cinfo @username`
+- `/help`
+
+### ✨ Klikcepat Polish
+- ✏️ Edit Link: search by slug/title (case-insensitive, paginated)
+- 📋 List Rotator: split picker bertingkat (CF | KLIKCEPAT → BIOLINK | SHORTLINK)
+- 🩺 Health Dashboard: section Klikcepat baru (status, mapping, rotator counts)
+- 🔍 Global Search: scan klikcepat juga (domain mapping + rotator destination)
+
+### 🐛 Critical Bug Fixes
+- Username dengan underscore (`@lupis_keju`) bikin Telegram reject bot reply
+- Italic wrap code block (`_text `code` text_`) di banyak prompt → fixed
+- Klikcepat sticky-blocked stuck — retry swap juga buat sticky/force-blocked
+- Klikcepat API broken untuk update (`email_reports` decode + slug preservation)
+
+### 🔧 Backend
+- New stores: KlikcepatBlockRotatorStore, GroupCommandStore
+- Klikcepat client: ListBiolinkBlocks, GetBiolinkBlock, UpdateBiolinkBlockLocation
+- Custom Pixly endpoint `ApiBiolinkBlocks.php` (build from scratch — vendor patch)
+- LinkFB.io API verified compatible tanpa patch
+
+---
+
 ## 🎰 v1.5 — "Group Commands + Full UX Polish" (2026-05-29)
 
 **Big release.** Member di group sekarang bisa pake bot tanpa harus admin — slash command langsung kasih link aktif.
