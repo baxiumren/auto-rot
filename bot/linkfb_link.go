@@ -122,6 +122,9 @@ func (h *Handler) handleLinkfbList(c tele.Context) error {
 // ─── Edit Link ───────────────────────────────────────────────────────────────
 
 func (h *Handler) handleLinkfbEdit(c tele.Context) error {
+	pageStr := extractParam(c)
+	page, _ := strconv.Atoi(pageStr)
+
 	c.Edit("⏳ Loading links...", tele.ModeMarkdown)
 	links, err := h.linkfb.ListLinks("link")
 	if err != nil {
@@ -144,25 +147,53 @@ func (h *Handler) handleLinkfbEdit(c tele.Context) error {
 			backToLinkfb(), tele.ModeMarkdown)
 	}
 
+	total := len(shortlinks)
+	totalPages := (total + linkfbPerPage - 1) / linkfbPerPage
+	if page >= totalPages {
+		page = totalPages - 1
+	}
+	if page < 0 {
+		page = 0
+	}
+	start := page * linkfbPerPage
+	end := start + linkfbPerPage
+	if end > total {
+		end = total
+	}
+
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
-	for _, l := range shortlinks {
-		if len(rows) >= 30 {
-			break
-		}
+	for i := start; i < end; i++ {
+		l := shortlinks[i]
 		fullURL := h.buildLinkfbFullURL(l)
 		display := strings.TrimPrefix(fullURL, "https://")
 		rows = append(rows, m.Row(m.Data(
 			fmt.Sprintf("🔗 %s", truncate(display, 45)),
 			cbLinkfbEditPick, strconv.Itoa(int(l.ID)))))
 	}
+
+	// Pagination
+	if totalPages > 1 {
+		var navRow tele.Row
+		if page > 0 {
+			navRow = append(navRow, m.Data("⬅️ Prev", cbLinkfbEdit, strconv.Itoa(page-1)))
+		}
+		navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
+		if page < totalPages-1 {
+			navRow = append(navRow, m.Data("Next ➡️", cbLinkfbEdit, strconv.Itoa(page+1)))
+		}
+		rows = append(rows, navRow)
+	}
 	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbLinkfb)))
 	m.Inline(rows...)
 
 	return c.Edit(
-		"💎 *E D I T   L I N K* 💎\n"+
+		fmt.Sprintf("💎 *E D I T   L I N K* 💎\n"+
+			"|\n"+
+			"📊 Page %d/%d • Total %d link\n"+
 			"|\n"+
 			"✏️ Pilih shortlink yg mau di-edit 👇",
+			page+1, totalPages, total),
 		m, tele.ModeMarkdown)
 }
 
@@ -277,6 +308,9 @@ func (h *Handler) wizardLinkfbEditValue(c tele.Context, sess *Session) error {
 // ─── Delete Link ─────────────────────────────────────────────────────────────
 
 func (h *Handler) handleLinkfbDelete(c tele.Context) error {
+	pageStr := extractParam(c)
+	page, _ := strconv.Atoi(pageStr)
+
 	c.Edit("⏳ Loading links...", tele.ModeMarkdown)
 	links, err := h.linkfb.ListLinks("link")
 	if err != nil {
@@ -295,27 +329,54 @@ func (h *Handler) handleLinkfbDelete(c tele.Context) error {
 		return c.Edit("📭 Belum ada link buat dihapus.", backToLinkfb(), tele.ModeMarkdown)
 	}
 
+	total := len(shortlinks)
+	totalPages := (total + linkfbPerPage - 1) / linkfbPerPage
+	if page >= totalPages {
+		page = totalPages - 1
+	}
+	if page < 0 {
+		page = 0
+	}
+	start := page * linkfbPerPage
+	end := start + linkfbPerPage
+	if end > total {
+		end = total
+	}
+
 	m := &tele.ReplyMarkup{}
 	var rows []tele.Row
-	for _, l := range shortlinks {
-		if len(rows) >= 30 {
-			break
-		}
+	for i := start; i < end; i++ {
+		l := shortlinks[i]
 		fullURL := h.buildLinkfbFullURL(l)
 		display := strings.TrimPrefix(fullURL, "https://")
 		rows = append(rows, m.Row(m.Data(
 			fmt.Sprintf("🗑 %s", truncate(display, 45)),
 			cbLinkfbDeletePick, strconv.Itoa(int(l.ID)))))
 	}
+
+	if totalPages > 1 {
+		var navRow tele.Row
+		if page > 0 {
+			navRow = append(navRow, m.Data("⬅️ Prev", cbLinkfbDelete, strconv.Itoa(page-1)))
+		}
+		navRow = append(navRow, m.Data(fmt.Sprintf("%d/%d", page+1, totalPages), cbNoop))
+		if page < totalPages-1 {
+			navRow = append(navRow, m.Data("Next ➡️", cbLinkfbDelete, strconv.Itoa(page+1)))
+		}
+		rows = append(rows, navRow)
+	}
 	rows = append(rows, m.Row(m.Data("🔙 Kembali", cbLinkfb)))
 	m.Inline(rows...)
 
 	return c.Edit(
-		"💎 *H A P U S   L I N K* 💎\n"+
+		fmt.Sprintf("💎 *H A P U S   L I N K* 💎\n"+
+			"|\n"+
+			"📊 Page %d/%d • Total %d link\n"+
 			"|\n"+
 			"🗑 Pilih link yg mau dihapus 👇\n"+
 			"|\n"+
 			"⚠️ Action ini PERMANENT",
+			page+1, totalPages, total),
 		m, tele.ModeMarkdown)
 }
 
@@ -535,35 +596,4 @@ func (h *Handler) doLinkfbAddCreate(c tele.Context, sess *Session, projectID int
 	return h.reply(c, successText, backToLinkfb(), tele.ModeMarkdown)
 }
 
-// ─── Projects (simple list) ──────────────────────────────────────────────────
-
-func (h *Handler) handleLinkfbProjects(c tele.Context) error {
-	c.Edit("⏳ Loading projects...", tele.ModeMarkdown)
-	projects, err := h.linkfb.ListProjects()
-	if err != nil {
-		return c.Edit(fmt.Sprintf("❌ Gagal fetch:\n```\n%s\n```", escapeMD(err.Error())),
-			backToLinkfb(), tele.ModeMarkdown)
-	}
-
-	var sb strings.Builder
-	sb.WriteString("💎 *L I N K F B   P R O J E C T S* 💎\n")
-	sb.WriteString("|\n")
-
-	if len(projects) == 0 {
-		sb.WriteString("📭 *EMPTY*\n")
-		sb.WriteString("└ Belum ada project\n")
-		sb.WriteString("|\n")
-		sb.WriteString("💡 Bikin project via linkfb.io web dulu")
-	} else {
-		sb.WriteString(fmt.Sprintf("📊 *TOTAL : %d project*\n", len(projects)))
-		sb.WriteString("|\n")
-		sb.WriteString("📁 *LIST*\n")
-		for _, p := range projects {
-			sb.WriteString(fmt.Sprintf("└ *%s* (id %d)\n", escapeMD(p.Name), p.ID))
-		}
-		sb.WriteString("|\n")
-		sb.WriteString("💡 Edit/hapus project via linkfb.io web")
-	}
-
-	return c.Edit(sb.String(), backToLinkfb(), tele.ModeMarkdown)
-}
+// Projects CRUD moved to bot/linkfb_project.go

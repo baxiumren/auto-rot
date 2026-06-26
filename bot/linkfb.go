@@ -44,7 +44,7 @@ const textLinkfb = "💎 *L I N K F B* 💎\n" +
 
 func linkfbMenu() *tele.ReplyMarkup {
 	m := &tele.ReplyMarkup{}
-	m.Inline(
+	rows := []tele.Row{
 		m.Row(
 			m.Data("➕ Tambah Link", cbLinkfbAdd),
 			m.Data("📋 List Link", cbLinkfbList),
@@ -56,13 +56,39 @@ func linkfbMenu() *tele.ReplyMarkup {
 		m.Row(
 			m.Data("📁 Projects", cbLinkfbProjects),
 		),
+		m.Row(
+			m.URL("🌐 Open Dashboard", "https://linkfb.io"),
+		),
 		m.Row(m.Data("🔙 Kembali", cbMain)),
-	)
+	}
+	m.Inline(rows...)
 	return m
 }
 
 func backToLinkfb() *tele.ReplyMarkup {
 	m := &tele.ReplyMarkup{}
 	m.Inline(m.Row(m.Data("🔙 Kembali", cbLinkfb)))
+	return m
+}
+
+func linkfbProjectsMenu() *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	m.Inline(
+		m.Row(
+			m.Data("➕ Tambah Project", cbLinkfbProjectAdd),
+			m.Data("📋 List Projects", cbLinkfbProjectList),
+		),
+		m.Row(
+			m.Data("✏️ Edit Project", cbLinkfbProjectEdit),
+			m.Data("🗑 Hapus Project", cbLinkfbProjectDelete),
+		),
+		m.Row(m.Data("🔙 Kembali", cbLinkfb)),
+	)
+	return m
+}
+
+func backToLinkfbProjects() *tele.ReplyMarkup {
+	m := &tele.ReplyMarkup{}
+	m.Inline(m.Row(m.Data("🔙 Kembali", cbLinkfbProjects)))
 	return m
 }

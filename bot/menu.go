@@ -181,14 +181,23 @@ const (
 	cbLinkfbAdd           = "linkfb_add"
 	cbLinkfbAddType       = "linkfb_addt"   // param = type
 	cbLinkfbAddPickProj   = "linkfb_addpr"  // param = project_id
-	cbLinkfbList          = "linkfb_list"   // param = "type|page"
-	cbLinkfbEdit          = "linkfb_edit"
+	cbLinkfbList          = "linkfb_list"   // param = "page"
+	cbLinkfbEdit          = "linkfb_edit"   // param = page
 	cbLinkfbEditPick      = "linkfb_editp"  // param = link_id
 	cbLinkfbEditField     = "linkfb_editf"  // param = field
-	cbLinkfbDelete        = "linkfb_del"
+	cbLinkfbDelete        = "linkfb_del"    // param = page
 	cbLinkfbDeletePick    = "linkfb_delp"   // param = link_id
 	cbLinkfbDeleteConfirm = "linkfb_delc"   // param = link_id
-	cbLinkfbProjects      = "linkfb_proj"
+
+	// LinkFB Projects (CRUD parity dengan klikcepat)
+	cbLinkfbProjects             = "linkfb_proj"
+	cbLinkfbProjectAdd           = "linkfb_proj_add"
+	cbLinkfbProjectList          = "linkfb_proj_list"
+	cbLinkfbProjectEdit          = "linkfb_proj_edit"
+	cbLinkfbProjectEditPick      = "linkfb_proj_editp" // param = project_id
+	cbLinkfbProjectDelete        = "linkfb_proj_del"
+	cbLinkfbProjectDeletePick    = "linkfb_proj_delp" // param = project_id
+	cbLinkfbProjectDeleteConfirm = "linkfb_proj_delc" // param = project_id
 
 	// LinkFB Settings
 	cbSettingsLinkfb       = "set_lfb"

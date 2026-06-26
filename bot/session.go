@@ -112,6 +112,11 @@ const (
 	StepLinkfbEditPickField  Step = "lfb_edit_pickfield"
 	StepLinkfbEditValue      Step = "lfb_edit_value"
 
+	// LinkFB Projects CRUD
+	StepLinkfbProjectAddName  Step = "lfb_proj_add_name"
+	StepLinkfbProjectAddColor Step = "lfb_proj_add_color"
+	StepLinkfbProjectEditName Step = "lfb_proj_edit_name"
+
 	// LinkFB Settings
 	StepSettingsLinkfbURL Step = "set_lfb_url_in"
 	StepSettingsLinkfbKey Step = "set_lfb_key_in"

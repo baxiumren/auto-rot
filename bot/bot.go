@@ -648,6 +648,20 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleLinkfbDeleteConfirm(c)
 	case cbLinkfbProjects:
 		return h.handleLinkfbProjects(c)
+	case cbLinkfbProjectAdd:
+		return h.handleLinkfbProjectAdd(c)
+	case cbLinkfbProjectList:
+		return h.handleLinkfbProjectList(c)
+	case cbLinkfbProjectEdit:
+		return h.handleLinkfbProjectEdit(c)
+	case cbLinkfbProjectEditPick:
+		return h.handleLinkfbProjectEditPick(c)
+	case cbLinkfbProjectDelete:
+		return h.handleLinkfbProjectDelete(c)
+	case cbLinkfbProjectDeletePick:
+		return h.handleLinkfbProjectDeletePick(c)
+	case cbLinkfbProjectDeleteConfirm:
+		return h.handleLinkfbProjectDeleteConfirm(c)
 	case cbSettingsCF:
 		return h.handleSettingsCF(c)
 	case cbSettingsSetEmail:
@@ -825,6 +839,12 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardLinkfbAddLocation(c, sess)
 	case StepLinkfbEditValue:
 		return h.wizardLinkfbEditValue(c, sess)
+	case StepLinkfbProjectAddName:
+		return h.wizardLinkfbProjectAddName(c, sess)
+	case StepLinkfbProjectAddColor:
+		return h.wizardLinkfbProjectAddColor(c, sess)
+	case StepLinkfbProjectEditName:
+		return h.wizardLinkfbProjectEditName(c, sess)
 
 	// Info Tools
 	case StepToolsUserIDInput:
