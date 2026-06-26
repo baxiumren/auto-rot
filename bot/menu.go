@@ -197,6 +197,14 @@ const (
 	cbSettingsLinkfbTest   = "set_lfb_test"
 	cbSettingsLinkfbClear  = "set_lfb_clear"
 
+	// Info Tools (Telegram utility)
+	cbTools          = "tools"
+	cbToolsUserID    = "t_uid"   // /id @username
+	cbToolsChatID    = "t_cid"   // /cekid <t.me link>
+	cbToolsUserInfo  = "t_uinfo" // /info @username
+	cbToolsChatInfo  = "t_cinfo" // /cinfo @username
+	cbToolsHelp      = "t_help"
+
 	// Bulk Setup Rotator — pick type (CF or Klikcepat) then subtype
 	cbRotatorBulkTypeCF           = "rotator_bulk_cf"
 	cbRotatorBulkTypeKlikcepat    = "rotator_bulk_klc"
@@ -343,6 +351,7 @@ func mainMenu() *tele.ReplyMarkup {
 		),
 		m.Row(
 			m.Data("🔗 LINKFB", cbLinkfb),
+			m.Data("🛠 Info Tools", cbTools),
 		),
 		m.Row(
 			m.Data("🔧 Settings", cbSettings),

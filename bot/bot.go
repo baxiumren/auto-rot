@@ -108,6 +108,13 @@ func (h *Handler) Register() {
 	h.bot.Handle("/start", h.handleStart)
 	h.bot.Handle("/menu", h.handleMenu)
 
+	// Info Tools commands (works di DM admin + group)
+	h.bot.Handle("/id", h.handleSlashID)
+	h.bot.Handle("/cekid", h.handleSlashCekID)
+	h.bot.Handle("/info", h.handleSlashInfo)
+	h.bot.Handle("/cinfo", h.handleSlashCInfo)
+	h.bot.Handle("/help", h.handleSlashHelp)
+
 	// Callbacks routing
 	h.bot.Handle(tele.OnCallback, h.handleCallback)
 
@@ -604,6 +611,20 @@ func (h *Handler) handleCallback(c tele.Context) error {
 	case cbSettingsLinkfbClear:
 		return h.handleSettingsLinkfbClear(c)
 
+	// Info Tools
+	case cbTools:
+		return h.handleTools(c)
+	case cbToolsUserID:
+		return h.handleToolsUserID(c)
+	case cbToolsChatID:
+		return h.handleToolsChatID(c)
+	case cbToolsUserInfo:
+		return h.handleToolsUserInfo(c)
+	case cbToolsChatInfo:
+		return h.handleToolsChatInfo(c)
+	case cbToolsHelp:
+		return h.handleToolsHelp(c)
+
 	// LinkFB main + CRUD
 	case cbLinkfb:
 		return h.handleLinkfb(c)
@@ -804,6 +825,16 @@ func (h *Handler) handleText(c tele.Context) error {
 		return h.wizardLinkfbAddLocation(c, sess)
 	case StepLinkfbEditValue:
 		return h.wizardLinkfbEditValue(c, sess)
+
+	// Info Tools
+	case StepToolsUserIDInput:
+		return h.wizardToolsUserID(c, sess)
+	case StepToolsChatIDInput:
+		return h.wizardToolsChatID(c, sess)
+	case StepToolsUserInfoInput:
+		return h.wizardToolsUserInfo(c, sess)
+	case StepToolsChatInfoInput:
+		return h.wizardToolsChatInfo(c, sess)
 
 	// Klikcepat Bulk Setup Rotator
 	case StepKlikcepatRotBulkPick, StepKlikcepatRotBulkPool:

@@ -115,6 +115,12 @@ const (
 	// LinkFB Settings
 	StepSettingsLinkfbURL Step = "set_lfb_url_in"
 	StepSettingsLinkfbKey Step = "set_lfb_key_in"
+
+	// Info Tools input
+	StepToolsUserIDInput   Step = "tools_uid_in"
+	StepToolsChatIDInput   Step = "tools_cid_in"
+	StepToolsUserInfoInput Step = "tools_uinfo_in"
+	StepToolsChatInfoInput Step = "tools_cinfo_in"
 )
 
 type Session struct {
