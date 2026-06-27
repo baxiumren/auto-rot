@@ -238,7 +238,7 @@ func (h *Handler) handleKlikcepatProjectDeletePick(c tele.Context) error {
 			m.Data("❌ Batal", cbKlikcepatProjects),
 		),
 	)
-	return c.Edit(fmt.Sprintf("⚠️ Yakin hapus project ID `%s`?\n\n_Note: link yang assigned ke project ini akan jadi tanpa project (project_id=0)._", projIDStr),
+	return c.Edit(fmt.Sprintf("⚠️ Yakin hapus project ID `%s`?\n\nNote: link yang assigned ke project ini akan jadi tanpa project.", projIDStr),
 		m, tele.ModeMarkdown)
 }
 

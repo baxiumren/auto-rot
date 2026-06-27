@@ -30,7 +30,7 @@ func (h *Handler) handleRotatorAdd(c tele.Context) error {
 			"|\n"+
 			"🎯 *PILIH PLATFORM*\n"+
 			"└ ⚙️ CF Redirect — swap target URL CF rule\n"+
-			"└ 🔗 KLIKCEPAT — swap location_url klikcepat\n"+
+			"└ 🔗 KLIKCEPAT — swap `location_url` klikcepat\n"+
 			"|\n"+
 			"💡 Klik tombol di bawah 👇",
 		m, tele.ModeMarkdown)
