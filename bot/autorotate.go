@@ -336,6 +336,9 @@ func (h *Handler) handleRotatorListCF(c tele.Context) error {
 		rows = append(rows, m.Row(
 			m.Data(fmt.Sprintf("⚙️ %s", truncate(rot.Label, 18)), cbNoop),
 			m.Data(toggleIcon, cbRotatorToggle, rot.ID),
+		))
+		rows = append(rows, m.Row(
+			m.Data("🔄 Force Swap", cbRotatorForce, rot.ID),
 			m.Data("🗑 Hapus", cbRotatorDelete, rot.ID),
 		))
 	}
@@ -391,6 +394,9 @@ func (h *Handler) handleRotatorListKlcShortlink(c tele.Context) error {
 		rows = append(rows, m.Row(
 			m.Data(fmt.Sprintf("🔗 %s", truncate(rot.Label, 18)), cbNoop),
 			m.Data(toggleIcon, cbKlikcepatRotToggle, rot.ID),
+		))
+		rows = append(rows, m.Row(
+			m.Data("🔄 Force Swap", cbKlikcepatRotForce, rot.ID),
 			m.Data("🗑 Hapus", cbKlikcepatRotDelete, rot.ID),
 		))
 	}
@@ -453,6 +459,9 @@ func (h *Handler) handleRotatorListKlcBiolink(c tele.Context) error {
 		rows = append(rows, m.Row(
 			m.Data(fmt.Sprintf("📄 %s", truncate(rot.Label, 18)), cbNoop),
 			m.Data(toggleIcon, cbKlcBlockRotToggle, rot.ID),
+		))
+		rows = append(rows, m.Row(
+			m.Data("🔄 Force Swap", cbKlcBlockRotForce, rot.ID),
 			m.Data("🗑 Hapus", cbKlcBlockRotDelete, rot.ID),
 		))
 	}

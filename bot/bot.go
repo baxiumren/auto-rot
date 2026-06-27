@@ -451,6 +451,8 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleKlcBlockRotToggle(c)
 	case cbKlcBlockRotDelete:
 		return h.handleKlcBlockRotDelete(c)
+	case cbKlcBlockRotForce:
+		return h.handleKlcBlockRotForce(c)
 	case cbKlikcepatRotPickLink:
 		return h.handleKlikcepatRotPickLink(c)
 	case cbKlikcepatRotPickPool:
@@ -479,6 +481,8 @@ func (h *Handler) handleCallback(c tele.Context) error {
 		return h.handleKlikcepatRotToggle(c)
 	case cbKlikcepatRotDelete:
 		return h.handleKlikcepatRotDelete(c)
+	case cbKlikcepatRotForce:
+		return h.handleKlikcepatRotForce(c)
 
 	// Bulk Setup Rotator
 	case cbRotatorBulk:

@@ -162,6 +162,7 @@ const (
 	cbKlcBlockRotPickPool    = "klc_blk_pickpool"  // param = pool label
 	cbKlcBlockRotToggle      = "klc_blk_toggle"    // param = rotator ID
 	cbKlcBlockRotDelete      = "klc_blk_delete"    // param = rotator ID
+	cbKlcBlockRotForce       = "klc_blk_force"     // param = rotator ID
 
 	// List Rotator picker (split by type)
 	cbRotatorListCF        = "rot_list_cf"
