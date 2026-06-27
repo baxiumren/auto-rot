@@ -71,6 +71,12 @@ type MonitorScanner struct {
 	klikcepatRotators      *store.KlikcepatRotatorStore
 	klikcepatBlockRotators *store.KlikcepatBlockRotatorStore
 	klcShortlinkURL        func(klikcepat.Link) string // builder buat display URL (domain + slug); nil-safe
+	summaryNotifier        SummaryNotifier             // optional — kalau set, send summary message after cycle
+
+	// Current batch tracker (mutex-protected). Set saat enter BLOCKED first-detect,
+	// cleared setelah summary dikirim. Trigger functions append ke sini via recordResult().
+	batchMu      sync.Mutex
+	currentBatch *SwapBatch
 
 	mu      sync.Mutex
 	blocked map[string]*blockCycle
@@ -135,6 +141,70 @@ func (ms *MonitorScanner) SetKlikcepatShortlinkURLBuilder(fn func(klikcepat.Link
 // SetKlikcepatBlockRotators injects the block rotator store for biolink button auto-swap.
 func (ms *MonitorScanner) SetKlikcepatBlockRotators(s *store.KlikcepatBlockRotatorStore) {
 	ms.klikcepatBlockRotators = s
+}
+
+// SetSummaryNotifier injects the summary notifier (called after batch swap completes).
+func (ms *MonitorScanner) SetSummaryNotifier(n SummaryNotifier) {
+	ms.summaryNotifier = n
+}
+
+// TriggerSwapForDomain is the public retry entry point — re-runs swap logic
+// for a previously blocked domain. Called from bot retry button.
+// Returns the new batch result.
+func (ms *MonitorScanner) TriggerSwapForDomain(domain, label string) *SwapBatch {
+	batch := ms.startBatch(domain, label)
+	// Run all 3 platforms (idempotent — already-swapped will be skipped)
+	ms.triggerAutoSwap(domain, label)
+	if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
+		ms.triggerKlikcepatAutoSwap(domain, label)
+	}
+	if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatBlockRotators != nil {
+		ms.triggerKlikcepatBlockAutoSwap(domain, label)
+	}
+	ms.endBatch()
+	batch.Finish()
+	return batch
+}
+
+// startBatch initializes the current batch tracker. Called from BLOCKED first-detect.
+func (ms *MonitorScanner) startBatch(domain, label string) *SwapBatch {
+	ms.batchMu.Lock()
+	defer ms.batchMu.Unlock()
+	batch := NewSwapBatch(domain, label)
+	ms.currentBatch = batch
+	return batch
+}
+
+// endBatch retrieves current batch and clears tracker.
+// Returns nil if no batch was active.
+func (ms *MonitorScanner) endBatch() *SwapBatch {
+	ms.batchMu.Lock()
+	defer ms.batchMu.Unlock()
+	b := ms.currentBatch
+	ms.currentBatch = nil
+	if b != nil {
+		b.Finish()
+	}
+	return b
+}
+
+// recordSwapResult appends to current batch if tracking is active.
+// No-op if no batch — backward compatible with sticky-retry cycles.
+func (ms *MonitorScanner) recordSwapResult(r SwapResult) {
+	ms.batchMu.Lock()
+	defer ms.batchMu.Unlock()
+	if ms.currentBatch != nil {
+		ms.currentBatch.Add(r)
+	}
+}
+
+// recordSwapPool sets pool name on current batch (first one wins).
+func (ms *MonitorScanner) recordSwapPool(pool string) {
+	ms.batchMu.Lock()
+	defer ms.batchMu.Unlock()
+	if ms.currentBatch != nil {
+		ms.currentBatch.SetPool(pool)
+	}
 }
 
 func (ms *MonitorScanner) SetInterval(d time.Duration) {
@@ -435,24 +505,37 @@ func (ms *MonitorScanner) checkOne(domain, label string) {
 			ms.blocked[domain] = cycle
 			ms.mu.Unlock()
 
-			// Send FIRST alert + trigger auto-swap immediately
+			// Send FIRST alert + start batch tracking + trigger auto-swap
 			ms.sendBlockAlert(cycle, true)
+			ms.startBatch(domain, label)
 			ms.triggerAutoSwap(domain, label)
+
+			// Klikcepat triggers SETIAP cycle BLOCKED (idempotent — skip kalau host udah beda)
+			if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
+				ms.triggerKlikcepatAutoSwap(domain, label)
+			}
+			if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatBlockRotators != nil {
+				ms.triggerKlikcepatBlockAutoSwap(domain, label)
+			}
+
+			// Send summary if ≥2 swap occurred (cuma 1 swap = notif individual cukup)
+			batch := ms.endBatch()
+			if batch != nil && batch.Total() >= 2 && ms.summaryNotifier != nil {
+				ms.summaryNotifier.NotifySwapSummary(batch)
+			}
 		} else {
 			// Sudah ada — update label kalau berubah
 			ms.mu.Lock()
 			cycle.label = label
 			ms.mu.Unlock()
-		}
 
-		// Klikcepat auto-swap: dipanggil SETIAP cycle BLOCKED (idempotent — skip kalau host udah beda).
-		// Decoupled dari CF — biar kalau CF gak ada rotator, klikcepat tetep jalan.
-		if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
-			ms.triggerKlikcepatAutoSwap(domain, label)
-		}
-		// Biolink block rotator (target biolinks_blocks.location_url)
-		if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatBlockRotators != nil {
-			ms.triggerKlikcepatBlockAutoSwap(domain, label)
+			// Sticky-retry: trigger tanpa batch tracking (silent retry, gak summary lagi)
+			if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatRotators != nil {
+				ms.triggerKlikcepatAutoSwap(domain, label)
+			}
+			if ms.klikcepat != nil && ms.klikcepat.HasCredentials() && ms.klikcepatBlockRotators != nil {
+				ms.triggerKlikcepatBlockAutoSwap(domain, label)
+			}
 		}
 
 	case "SAFE":
@@ -589,7 +672,10 @@ func (ms *MonitorScanner) triggerAutoSwap(blockedDomain, blockedLabel string) {
 		}
 
 		if rot == nil {
-			// CF rule ke-match tapi gak ada Rotator config → kasih warning, gak swap
+			ms.recordSwapResult(SwapResult{
+				Platform: PlatformCF, Label: rule.Label,
+				Success: false, ErrorMsg: "belum ada Rotator config",
+			})
 			ms.notify.Notify(fmt.Sprintf(
 				"⚠️ *Auto-swap di-skip — belum ada Rotator config*\n"+
 					"🌐 Domain blocked: `%s`\n"+
@@ -601,9 +687,15 @@ func (ms *MonitorScanner) triggerAutoSwap(blockedDomain, blockedLabel string) {
 			continue
 		}
 
+		ms.recordSwapPool(rot.PoolLabel)
+
 		// Ambil pool dari Rotator config (BUKAN dari label monitor domain blocked!)
 		pool := ms.domains.GetByLabel(rot.PoolLabel)
 		if len(pool) == 0 {
+			ms.recordSwapResult(SwapResult{
+				Platform: PlatformCF, Label: rule.Label,
+				Success: false, ErrorMsg: "pool kosong",
+			})
 			ms.notify.Notify(fmt.Sprintf(
 				"⚠️ *Auto-swap gagal — pool kosong*\n"+
 					"🔧 Rule: `%s`\n"+
@@ -618,6 +710,10 @@ func (ms *MonitorScanner) triggerAutoSwap(blockedDomain, blockedLabel string) {
 		// Pilih next domain SAFE
 		nextDomain := ms.pickNextSafe(pool, blockedDomain)
 		if nextDomain == "" {
+			ms.recordSwapResult(SwapResult{
+				Platform: PlatformCF, Label: rule.Label,
+				Success: false, ErrorMsg: "semua pool blocked",
+			})
 			ms.notify.Notify(fmt.Sprintf(
 				"🚨 *Semua pool BLOCKED!*\n"+
 					"🔧 Rule: `%s`\n"+
@@ -630,12 +726,15 @@ func (ms *MonitorScanner) triggerAutoSwap(blockedDomain, blockedLabel string) {
 		}
 
 		// Preserve path & query dari URL lama (cuma host yang diganti)
-		// Contoh: https://domain1.com/daftar?ref=x → https://domain2.com/daftar?ref=x
 		nextURL := buildSwapURL(currentURL, nextDomain)
 		if err := ms.cf.UpdateURL(rule, nextURL); err != nil {
 			if ms.history != nil {
 				ms.history.LogSwap("monitor-scan", rule.Label, rule.Domain, currentURL, nextURL, false, err.Error())
 			}
+			ms.recordSwapResult(SwapResult{
+				Platform: PlatformCF, Label: rule.Label, NextDomain: nextDomain,
+				Success: false, ErrorMsg: err.Error(),
+			})
 			ms.notify.Notify(fmt.Sprintf(
 				"❌ *Auto-swap GAGAL*\n"+
 					"🔧 Rule: `%s`\n"+
@@ -654,6 +753,11 @@ func (ms *MonitorScanner) triggerAutoSwap(blockedDomain, blockedLabel string) {
 			c.swapped = true
 		}
 		ms.mu.Unlock()
+
+		ms.recordSwapResult(SwapResult{
+			Platform: PlatformCF, Label: rule.Label, NextDomain: nextDomain,
+			Success: true,
+		})
 
 		ms.notify.Notify(fmt.Sprintf(
 			"⚡ *AUTO-SWAP via MONITOR*\n"+
@@ -706,9 +810,14 @@ func (ms *MonitorScanner) triggerKlikcepatAutoSwap(blockedDomain, blockedLabel s
 			continue
 		}
 		matched++
+		ms.recordSwapPool(rot.PoolLabel)
 		pool := ms.domains.GetByLabel(rot.PoolLabel)
 		nextDomain := ms.pickNextSafe(pool, blockedDomain)
 		if nextDomain == "" {
+			ms.recordSwapResult(SwapResult{
+				Platform: PlatformKlikcepatLink, Label: rot.Label,
+				Success: false, ErrorMsg: "pool kosong (semua blocked)",
+			})
 			ms.notify.Notify(fmt.Sprintf(
 				"🚨 *Klikcepat swap GAGAL — pool kosong*\n"+
 					"🔗 Link: `/%s`\n"+
@@ -726,6 +835,10 @@ func (ms *MonitorScanner) triggerKlikcepatAutoSwap(blockedDomain, blockedLabel s
 			}
 			log.Printf("[KLIKCEPAT-SWAP] FAIL link=%d url=%q err=%v",
 				rot.LinkID, newLocationURL, err)
+			ms.recordSwapResult(SwapResult{
+				Platform: PlatformKlikcepatLink, Label: rot.Label, NextDomain: nextDomain,
+				Success: false, ErrorMsg: truncateErrMsg(err.Error(), 60),
+			})
 			ms.notify.Notify(fmt.Sprintf(
 				"❌ *Klikcepat AUTO-SWAP GAGAL*\n"+
 					"🔗 Link: `/%s`\n"+
@@ -738,6 +851,10 @@ func (ms *MonitorScanner) triggerKlikcepatAutoSwap(blockedDomain, blockedLabel s
 		if ms.history != nil {
 			ms.history.LogSwap("klikcepat-scan", rot.Label, rot.LinkURL, link.LocationURL, newLocationURL, true, "")
 		}
+		ms.recordSwapResult(SwapResult{
+			Platform: PlatformKlikcepatLink, Label: rot.Label, NextDomain: nextDomain,
+			Success: true,
+		})
 		// Build full shortlink URL (domain + slug) untuk display di notif.
 		// Fallback ke /slug kalau builder belum di-set.
 		shortlinkDisplay := "/" + rot.LinkURL
@@ -798,10 +915,15 @@ func (ms *MonitorScanner) triggerKlikcepatBlockAutoSwap(blockedDomain, blockedLa
 			continue
 		}
 		matched++
+		ms.recordSwapPool(rot.PoolLabel)
 
 		pool := ms.domains.GetByLabel(rot.PoolLabel)
 		nextDomain := ms.pickNextSafe(pool, blockedDomain)
 		if nextDomain == "" {
+			ms.recordSwapResult(SwapResult{
+				Platform: PlatformKlikcepatBlock, Label: rot.Label,
+				Success: false, ErrorMsg: "pool kosong (semua blocked)",
+			})
 			ms.notify.Notify(fmt.Sprintf(
 				"🚨 *Klikcepat block swap GAGAL — pool kosong*\n"+
 					"📄 Biolink slug: `/%s`\n"+
@@ -819,6 +941,10 @@ func (ms *MonitorScanner) triggerKlikcepatBlockAutoSwap(blockedDomain, blockedLa
 				ms.history.LogSwap("klc-block-scan", rot.Label, rot.BlockName, block.LocationURL, newLocationURL, false, err.Error())
 			}
 			log.Printf("[KLC-BLOCK-SWAP] FAIL block=%d err=%v", rot.BlockID, err)
+			ms.recordSwapResult(SwapResult{
+				Platform: PlatformKlikcepatBlock, Label: rot.Label, NextDomain: nextDomain,
+				Success: false, ErrorMsg: truncateErrMsg(err.Error(), 60),
+			})
 			ms.notify.Notify(fmt.Sprintf(
 				"❌ *Klikcepat BLOCK AUTO-SWAP GAGAL*\n"+
 					"📄 Biolink slug: `/%s`\n"+
@@ -832,6 +958,10 @@ func (ms *MonitorScanner) triggerKlikcepatBlockAutoSwap(blockedDomain, blockedLa
 		if ms.history != nil {
 			ms.history.LogSwap("klc-block-scan", rot.Label, rot.BlockName, block.LocationURL, newLocationURL, true, "")
 		}
+		ms.recordSwapResult(SwapResult{
+			Platform: PlatformKlikcepatBlock, Label: rot.Label, NextDomain: nextDomain,
+			Success: true,
+		})
 
 		// Bangun full biolink URL buat display
 		biolinkDisplay := "/" + rot.BiolinkSlug

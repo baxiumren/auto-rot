@@ -611,6 +611,10 @@ func (h *Handler) handleCallback(c tele.Context) error {
 	case cbSettingsLinkfbClear:
 		return h.handleSettingsLinkfbClear(c)
 
+	// Swap retry button
+	case cbSwapRetry:
+		return h.handleSwapRetry(c)
+
 	// Info Tools
 	case cbTools:
 		return h.handleTools(c)

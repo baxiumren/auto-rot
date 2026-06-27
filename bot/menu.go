@@ -206,6 +206,9 @@ const (
 	cbSettingsLinkfbTest   = "set_lfb_test"
 	cbSettingsLinkfbClear  = "set_lfb_clear"
 
+	// Swap Summary retry button
+	cbSwapRetry = "swap_retry" // param = retry cache ID
+
 	// Info Tools (Telegram utility)
 	cbTools          = "tools"
 	cbToolsUserID    = "t_uid"   // /id @username

@@ -133,6 +133,9 @@ func main() {
 	h := bot.New(b, cfg, domains, cfrules, rotators, creds, cf, rotSvc, monScanner, history, klc, klcRotators, klcBlockRotators, groupCmds, linkfb)
 	h.Register()
 
+	// Hook handler ke monitor scanner sebagai summary notifier
+	monScanner.SetSummaryNotifier(h)
+
 	// Backfill: rule lama yg field Domain-nya kosong → fetch zone name dari CF.
 	// Jalan async biar gak block startup. Skip kalau credentials belum di-set.
 	if cf.HasCredentials() {
